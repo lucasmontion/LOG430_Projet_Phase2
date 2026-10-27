@@ -1,0 +1,31 @@
+services:
+  drone-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: drone
+      POSTGRES_USER: drone
+      POSTGRES_PASSWORD: drone
+    volumes:
+      - donnees-drone:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U drone -d drone"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  drone-service:
+    build:
+      context: .                          # racine : le Dockerfile a besoin du POM parent
+      dockerfile: drone-service/Dockerfile
+    depends_on:
+      drone-db:
+        condition: service_healthy        # attend que PostgreSQL accepte les connexions
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://drone-db:5432/drone
+      SPRING_DATASOURCE_USERNAME: drone
+      SPRING_DATASOURCE_PASSWORD: drone
+    ports:
+      - "8081:8081"                       # TEMPORAIRE : retiré quand la passerelle sera en place
+
+volumes:
+  donnees-drone:
