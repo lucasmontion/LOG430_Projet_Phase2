@@ -1,4 +1,35 @@
 services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: start-dev --import-realm --http-port=8080
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD}
+      KC_HOSTNAME: http://localhost:8081          # émetteur (iss) fixe
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HEALTH_ENABLED: "true"
+      CANDRONEX_ADMIN_SECRET: ${CANDRONEX_ADMIN_SECRET}
+      CLIENT_MANAGEMENT_SERVICE_SECRET: ${CLIENT_MANAGEMENT_SERVICE_SECRET}
+      INSPECTRA_DEMO_SECRET: ${INSPECTRA_DEMO_SECRET}
+      AEROTECH_DEMO_SECRET: ${AEROTECH_DEMO_SECRET}
+      JETON_COURT_SECRET: ${JETON_COURT_SECRET}
+    volumes:
+      - ./keycloak/realm-candronex.json:/opt/keycloak/data/import/realm-candronex.json:ro
+    ports:
+      - "8081:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q 'UP' <&3"]
+      interval: 10s
+      retries: 20
+
+  api-gateway:
+    image: devopsfaith/krakend:2.7.2
+    volumes:
+      - ./krakend/krakend.json:/etc/krakend/krakend.json:ro
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    depends_on:
+      keycloak: { condition: service_healthy }
   drone-db:
     image: postgres:16
     environment:
@@ -24,8 +55,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://drone-db:5432/drone
       SPRING_DATASOURCE_USERNAME: drone
       SPRING_DATASOURCE_PASSWORD: drone
-    ports:
-      - "8081:8081"                       # TEMPORAIRE : retiré quand la passerelle sera en place
+
 
 volumes:
   donnees-drone:
