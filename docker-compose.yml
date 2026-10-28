@@ -56,6 +56,35 @@ services:
       SPRING_DATASOURCE_USERNAME: drone
       SPRING_DATASOURCE_PASSWORD: drone
 
+  commande-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: commande
+      POSTGRES_USER: commande
+      POSTGRES_PASSWORD: commande
+    volumes:
+      - donnees-commande:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U commande -d commande"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+
+  commande-service:
+    build:
+      context: .                          # racine : le Dockerfile a besoin du POM parent
+      dockerfile: commande-service/Dockerfile
+    depends_on:
+      commande-db:
+        condition: service_healthy        # attend que PostgreSQL accepte les connexions
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://commande-db:5432/commande
+      SPRING_DATASOURCE_USERNAME: commande
+      SPRING_DATASOURCE_PASSWORD: commande
+      DRONE_SERVICE_URL: http://drone-service:8081   # dépendance REST vers drone-service
+
 
 volumes:
   donnees-drone:
+  donnees-commande:

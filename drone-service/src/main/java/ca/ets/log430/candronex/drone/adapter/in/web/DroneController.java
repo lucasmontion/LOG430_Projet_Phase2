@@ -34,7 +34,7 @@ public class DroneController {
             @AuthenticationPrincipal Jwt jeton,
             @Valid @RequestBody EnregistrerDroneRequest requete) {
         String clientId = jeton.getClaimAsString("azp");   // identité du client : claim azp du jeton VÉRIFIÉ
-        log.info("[adapter.in] POST /api/drone-service/v1/drones clientId={} droneId={}", clientId, requete.droneId());
+        log.info("[adapter.in] POST /api/drone-service/v1/drone clientId={} droneId={}", clientId, requete.droneId());
 
         Drone drone = droneService.enregistrer(new EnregistrerDroneCommand(
                 clientId, requete.droneId(), requete.imsi(), requete.iccid(), requete.typeSim()));
@@ -50,7 +50,7 @@ public class DroneController {
             @AuthenticationPrincipal Jwt jeton,
             @PathVariable String droneId) {
         String clientId = jeton.getClaimAsString("azp");   // identité du client : claim azp du jeton VÉRIFIÉ
-        log.info("[adapter.in] GET /api/v1/drones/{} clientId={}", droneId, clientId);
+        log.info("[adapter.in] GET /api/v1/drone/{} clientId={}", droneId, clientId);
         return DroneResponse.depuis(droneService.consulter(clientId, droneId));
     }
 }
