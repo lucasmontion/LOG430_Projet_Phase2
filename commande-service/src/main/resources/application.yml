@@ -1,0 +1,38 @@
+server:
+  port: ${SERVER_PORT:8082}   # 8081 drone, 8082 commande, 8083 slice ; 8080 = la passerelle
+
+spring:
+  application:
+    name: commande-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/commande}
+    username: ${SPRING_DATASOURCE_USERNAME:commande}
+    password: ${SPRING_DATASOURCE_PASSWORD:commande}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Clés publiques de Keycloak pour vérifier la signature (joint par le réseau Docker)
+          jwk-set-uri: ${JWT_JWKS_URL:http://keycloak:8080/realms/candronex/protocol/openid-connect/certs}
+          # Émetteur attendu (iss) : celui fixé par KC_HOSTNAME
+          issuer-uri: ${JWT_ISSUER:http://localhost:8081/realms/candronex}
+          # Audience attendue (aud) : un jeton émis pour une autre API est refusé
+          audiences: candronex-api
+  jpa:
+    hibernate:
+      ddl-auto: validate      # Flyway crée le schéma ; Hibernate vérifie seulement
+    open-in-view: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+logging:
+  pattern:
+    level: "%5p [commande-service] [corr=%X{correlationId:-}]"
+
+candronex:
+  drone-service:
+    url: ${DRONE_SERVICE_URL:http://drone-service:8081}   # adresse dans le réseau Docker
