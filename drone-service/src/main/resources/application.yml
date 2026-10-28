@@ -8,6 +8,16 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/drone}
     username: ${SPRING_DATASOURCE_USERNAME:drone}
     password: ${SPRING_DATASOURCE_PASSWORD:drone}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Clés publiques de Keycloak pour vérifier la signature (joint par le réseau Docker)
+          jwk-set-uri: ${JWT_JWKS_URL:http://keycloak:8080/realms/candronex/protocol/openid-connect/certs}
+          # Émetteur attendu (iss) : celui fixé par KC_HOSTNAME
+          issuer-uri: ${JWT_ISSUER:http://localhost:8081/realms/candronex}
+          # Audience attendue (aud) : un jeton émis pour une autre API est refusé
+          audiences: candronex-api
   jpa:
     hibernate:
       ddl-auto: validate      # Flyway crée le schéma ; Hibernate vérifie seulement

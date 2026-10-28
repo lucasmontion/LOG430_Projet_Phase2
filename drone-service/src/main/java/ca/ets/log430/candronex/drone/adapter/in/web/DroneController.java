@@ -8,12 +8,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.net.URI;
 
 /**
  * Adaptateur d'entrée REST : traduit HTTP <-> application. Aucune règle métier ici.
- * Le client s'identifie par l'en-tête X-Client-Id (UC-01 hors Phase 1).
+ * Le client est identifié par la claim azp du JWT, vérifié par Spring Security (SecuriteConfig).
  */
 @RestController
 @RequestMapping("/api/drone-service/v1/drone")
@@ -29,8 +31,9 @@ public class DroneController {
 
     @PostMapping
     public ResponseEntity<DroneResponse> enregistrer(
-            @RequestHeader(EN_TETE_CLIENT) String clientId,
+            @AuthenticationPrincipal Jwt jeton,
             @Valid @RequestBody EnregistrerDroneRequest requete) {
+        String clientId = jeton.getClaimAsString("azp");   // identité du client : claim azp du jeton VÉRIFIÉ
         log.info("[adapter.in] POST /api/drone-service/v1/drones clientId={} droneId={}", clientId, requete.droneId());
 
         Drone drone = droneService.enregistrer(new EnregistrerDroneCommand(
@@ -44,8 +47,9 @@ public class DroneController {
 
     @GetMapping("/{droneId}")
     public DroneResponse consulter(
-            @RequestHeader(EN_TETE_CLIENT) String clientId,
+            @AuthenticationPrincipal Jwt jeton,
             @PathVariable String droneId) {
+        String clientId = jeton.getClaimAsString("azp");   // identité du client : claim azp du jeton VÉRIFIÉ
         log.info("[adapter.in] GET /api/v1/drones/{} clientId={}", droneId, clientId);
         return DroneResponse.depuis(droneService.consulter(clientId, droneId));
     }
