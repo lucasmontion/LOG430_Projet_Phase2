@@ -7,7 +7,11 @@ import ca.ets.log430.candronex.commun.domaine.DonneeInvalideException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,7 +26,10 @@ import static org.mockito.Mockito.when;
  */
 class CommandeServiceTest {
 
+    static final Instant ACCEPTEE = Instant.parse("2026-10-29T12:00:00Z");
+
     private CommandeRepositoryEnMemoire repository;
+    private ActivationEnMemoire activation;
     private CommandeService service;
 
     @BeforeEach
@@ -35,10 +42,9 @@ class CommandeServiceTest {
             case "DRONE-SUSPENDU" -> Optional.of(new DroneVerifie(drone, "SUSPENDU"));
             default -> Optional.empty();
         };
-        service = new CommandeService(repository, drones, catalogueFacade);
-        service = new CommandeService(repository, drones, catalogueFacade);
-
-
+        activation = new ActivationEnMemoire();
+        service = new CommandeService(repository, drones, catalogueFacade, activation,
+                Clock.fixed(ACCEPTEE, ZoneOffset.UTC));
 
         when(catalogueFacade.trouverSpecification(anyString())).thenReturn(Optional.empty());
         when(catalogueFacade.trouverSpecification("C2")).thenReturn(Optional.of(
@@ -61,7 +67,7 @@ class CommandeServiceTest {
 
         Commande commande = resultat.commande();
         assertThat(resultat.nouvelle()).isTrue();
-        assertThat(commande.etat()).isEqualTo(EtatCommande.RECUE);
+        assertThat(commande.etat()).isEqualTo(EtatCommande.EN_COURS);   // activation demandée pour chaque élément
         assertThat(commande.elements()).hasSize(2);
         assertThat(commande.elements().get(0).caracteristiques().arp()).isEqualTo(2);
         assertThat(commande.elements().get(1).caracteristiques().ambrMontant()).isEqualTo("500 Mbps");
@@ -118,5 +124,75 @@ class CommandeServiceTest {
                 .isInstanceOf(CommandeIntrouvableException.class);
     }
 
-    
+    // ---- UC-06 déclenché par la commande ----
+
+    @Test
+    void demandeLActivationDeChaqueElementAvecAcceptedAt() {
+        Commande commande = service.passer(commande("cle-1", el("DRONE-001", "C2"), el("DRONE-001", "IMAGERIE"))).commande();
+
+        assertThat(activation.demandes).hasSize(2);
+        assertThat(activation.demandes).allSatisfy(d -> {
+            assertThat(d.commandeId()).isEqualTo(commande.id());
+            assertThat(d.acceptedAt()).isEqualTo(ACCEPTEE);   // début de la mesure du P95
+        });
+    }
+
+    @Test
+    void sliceIndisponibleNEmpechePasLaCommandeLesElementsRestentRecus() {
+        activation.disponible = false;
+
+        ResultatCommande resultat = service.passer(commande("cle-1", el("DRONE-001", "C2")));
+
+        assertThat(resultat.nouvelle()).isTrue();
+        assertThat(repository.commandes).hasSize(1);
+        assertThat(resultat.commande().etat()).isEqualTo(EtatCommande.RECUE);
+    }
+
+    @Test
+    void unRejeuRedemandeLActivationCeQuiRattrapeUnSliceIndisponible() {
+        activation.disponible = false;
+        service.passer(commande("cle-1", el("DRONE-001", "C2")));
+        activation.disponible = true;
+
+        ResultatCommande rejeu = service.passer(commande("cle-1", el("DRONE-001", "C2")));
+
+        assertThat(rejeu.nouvelle()).isFalse();
+        assertThat(rejeu.commande().etat()).isEqualTo(EtatCommande.EN_COURS);
+    }
+
+    @Test
+    void laConsultationRefleteLEtatDesServicesDeLInventaire() { // résultat partiel : C2 en échec, Imagerie actif
+        Commande commande = service.passer(commande("cle-1", el("DRONE-001", "C2"), el("DRONE-001", "IMAGERIE"))).commande();
+        activation.etats = Map.of(
+                commande.elements().get(0).id(), EtatElement.ECHEC,
+                commande.elements().get(1).id(), EtatElement.ACTIF);
+
+        Commande consultee = service.consulter("CLIENT-001", commande.id().valeur().toString());
+
+        assertThat(consultee.etat()).isEqualTo(EtatCommande.PARTIELLE);   // un échec du C2 n'est jamais masqué
+    }
+
+    /** Faux ActivationPort : enregistre les demandes et simule la disponibilité de slice-service. */
+    static class ActivationEnMemoire implements ActivationPort {
+        record Demande(CommandeId commandeId, ElementId elementId, Instant acceptedAt) {}
+
+        final List<Demande> demandes = new java.util.ArrayList<>();
+        boolean disponible = true;
+        Map<ElementId, EtatElement> etats = Map.of();
+
+        @Override
+        public Optional<EtatElement> demanderActivation(ca.ets.log430.candronex.commun.domaine.ClientId clientId,
+                                                        CommandeId commandeId, ElementCommande element,
+                                                        Instant acceptedAt) {
+            if (!disponible) return Optional.empty();
+            demandes.add(new Demande(commandeId, element.id(), acceptedAt));
+            return Optional.of(EtatElement.EN_COURS);
+        }
+
+        @Override
+        public Optional<Map<ElementId, EtatElement>> etatsDesElements(
+                ca.ets.log430.candronex.commun.domaine.ClientId clientId, CommandeId commandeId) {
+            return disponible ? Optional.of(etats) : Optional.empty();
+        }
+    }
 }

@@ -83,8 +83,41 @@ services:
       SPRING_DATASOURCE_USERNAME: commande
       SPRING_DATASOURCE_PASSWORD: commande
       DRONE_SERVICE_URL: http://drone-service:8081   # dépendance REST vers drone-service
+      SLICE_SERVICE_URL: http://slice-service:8083   # dépendance REST vers slice-service (UC-06)
 
+  slice-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: slice
+      POSTGRES_USER: slice
+      POSTGRES_PASSWORD: slice
+    volumes:
+      - donnees-slice:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U slice -d slice"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  slice-service:
+    build:
+      context: .                          # racine : le Dockerfile a besoin du POM parent
+      dockerfile: slice-service/Dockerfile
+    depends_on:
+      slice-db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://slice-db:5432/slice
+      SPRING_DATASOURCE_USERNAME: slice
+      SPRING_DATASOURCE_PASSWORD: slice
+      DRONE_SERVICE_URL: http://drone-service:8081   # dépendance REST vers drone-service (IMSI)
+      # Réseau 5G simulé (MockOpen5GSAdapter) : valeurs par défaut de l'énoncé, modifiables via .env
+      MOCK_LATENCE_MIN_MS: ${MOCK_LATENCE_MIN_MS:-300}
+      MOCK_LATENCE_MAX_MS: ${MOCK_LATENCE_MAX_MS:-1500}
+      MOCK_TAUX_ECHEC: ${MOCK_TAUX_ECHEC:-0.0}
+      MOCK_DELAI_ATTENTE_MS: ${MOCK_DELAI_ATTENTE_MS:-5000}
 
 volumes:
   donnees-drone:
   donnees-commande:
+  donnees-slice:

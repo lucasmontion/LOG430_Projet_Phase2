@@ -4,6 +4,7 @@ import ca.ets.log430.candronex.commun.domaine.ClientId;
 import ca.ets.log430.candronex.commun.domaine.DonneeInvalideException;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -65,6 +66,17 @@ public class Commande {
                 .anyMatch(e -> e.etat() == EtatElement.ECHEC || e.etat().estRetire());
         if (unActif && unEchecOuRetire) return EtatCommande.PARTIELLE;
         return EtatCommande.ECHOUEE;
+    }
+
+    /**
+     * L'état d'un élément reflète celui de son service dans l'inventaire (slice-service, §6.2).
+     * Un élément sans service connu garde son état (RECU : activation pas encore acceptée).
+     */
+    public void refleterEtatsDesServices(Map<ElementId, EtatElement> etats) {
+        elements.forEach(e -> {
+            EtatElement etat = etats.get(e.id());
+            if (etat != null) e.refleter(etat);
+        });
     }
 
     public boolean appartientA(ClientId client) {

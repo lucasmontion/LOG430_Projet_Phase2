@@ -37,6 +37,11 @@ public class ElementCommande {
         return droneId.equals(autre.droneId) && typeService.equals(autre.typeService);
     }
 
+    /** Reflète l'état de son service dans l'inventaire (§6.2). Accessible seulement par la commande. */
+    void refleter(EtatElement etatDuService) {
+        this.etat = Objects.requireNonNull(etatDuService, "etatDuService");
+    }
+
     public ElementId id() { return id; }
     public DroneId droneId() { return droneId; }
     public TypeService typeService() { return typeService; }

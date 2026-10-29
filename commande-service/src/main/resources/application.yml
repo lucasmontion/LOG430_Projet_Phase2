@@ -36,3 +36,5 @@ logging:
 candronex:
   drone-service:
     url: ${DRONE_SERVICE_URL:http://drone-service:8081}   # adresse dans le réseau Docker
+  slice-service:
+    url: ${SLICE_SERVICE_URL:http://slice-service:8083}   # adresse dans le réseau Docker

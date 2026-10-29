@@ -147,6 +147,44 @@
       }
     },
     {
+      "@comment": "UC-06 - Consulter l'etat d'un service du client authentifie (404 pour celui d'un autre client)",
+      "endpoint": "/api/slice-service/v1/service/{serviceId}",
+      "method": "GET",
+      "input_headers": [
+        "Authorization",
+        "X-Client-Id",
+        "X-Correlation-Id"
+      ],
+      "output_encoding": "no-op",
+      "backend": [
+        {
+          "host": [
+            "http://slice-service:8083"
+          ],
+          "url_pattern": "/api/slice-service/v1/service/{serviceId}",
+          "encoding": "no-op"
+        }
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "RS256",
+          "jwk_url": "http://keycloak:8080/realms/candronex/protocol/openid-connect/certs",
+          "disable_jwk_security": true,
+          "issuer": "http://localhost:8081/realms/candronex",
+          "audience": [
+            "candronex-api"
+          ],
+          "cache": true,
+          "propagate_claims": [
+            [
+              "azp",
+              "X-Client-Id"
+            ]
+          ]
+        }
+      }
+    },
+    {
       "@comment": "UC-04 - Consulter une commande du client authentifie (404 pour celle d'un autre client)",
       "endpoint": "/api/commande-service/v1/commande/{commandeId}",
       "method": "GET",
