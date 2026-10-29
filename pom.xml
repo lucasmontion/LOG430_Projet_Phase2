@@ -22,6 +22,7 @@
     <modules>
         <module>drone-service</module>
         <module>commande-service</module>
+        <module>slice-service</module>
     </modules>
 
     <properties>
