@@ -1,5 +1,6 @@
 package ca.ets.log430.candronex.drone.adapter.in.web;
 
+import ca.ets.log430.candronex.commun.adapter.in.web.RefusNonAuthentifie;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -14,12 +15,14 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecuriteConfig {
 
     @Bean
-    SecurityFilterChain securite(HttpSecurity http) throws Exception {
+    SecurityFilterChain securite(HttpSecurity http, RefusNonAuthentifie refus) throws Exception {
         return http
                 .authorizeHttpRequests(regles -> regles
                         .requestMatchers("/actuator/health").permitAll()   // sondes Docker, sans jeton
                         .anyRequest().authenticated())
-                .oauth2ResourceServer(o -> o.jwt(Customizer.withDefaults()))
+                .oauth2ResourceServer(o -> o
+                        .jwt(Customizer.withDefaults())
+                        .authenticationEntryPoint(refus))   // 401 au format Problem Details
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // API sans session
                 .csrf(c -> c.disable())   // pas de cookie de session : CSRF ne s'applique pas
                 .build();
