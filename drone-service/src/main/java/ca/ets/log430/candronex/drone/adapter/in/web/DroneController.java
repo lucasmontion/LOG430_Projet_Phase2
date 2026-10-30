@@ -21,7 +21,6 @@ import java.net.URI;
 @RequestMapping("/api/drone-service/v1/drone")
 public class DroneController {
     private static final Logger log = LoggerFactory.getLogger(DroneController.class);
-    private static final String EN_TETE_CLIENT = "X-Client-Id";
 
     private final DroneService droneService;
 
@@ -50,7 +49,21 @@ public class DroneController {
             @AuthenticationPrincipal Jwt jeton,
             @PathVariable String droneId) {
         String clientId = jeton.getClaimAsString("azp");   // identité du client : claim azp du jeton VÉRIFIÉ
-        log.info("[adapter.in] GET /api/v1/drone/{} clientId={}", droneId, clientId);
+        log.info("[adapter.in] GET /api/drone-service/v1/drone/{} clientId={}", droneId, clientId);
         return DroneResponse.depuis(droneService.consulter(clientId, droneId));
+    }
+
+    /**
+     * Route INTERNE (UC-06) : identité réseau du drone, demandée par slice-service au moment de l'activation.
+     * Absente de krakend.json, donc injoignable depuis l'extérieur ; toujours filtrée par le client du jeton.
+     * C'est la seule réponse qui contient l'IMSI.
+     */
+    @GetMapping("/{droneId}/identite-reseau")
+    public IdentiteReseauResponse identiteReseau(
+            @AuthenticationPrincipal Jwt jeton,
+            @PathVariable String droneId) {
+        String clientId = jeton.getClaimAsString("azp");
+        log.info("[adapter.in] GET /api/drone-service/v1/drone/{}/identite-reseau clientId={}", droneId, clientId);
+        return IdentiteReseauResponse.depuis(droneService.consulter(clientId, droneId));
     }
 }

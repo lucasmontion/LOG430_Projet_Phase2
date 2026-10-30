@@ -31,7 +31,7 @@ management:
 
 logging:
   pattern:
-    level: "%5p [commande-service] [corr=%X{correlationId:-}]"
+    level: "%5p [commande-service] [corr=%X{correlationId:-}] [commandeId=%X{commandeId:-}]"
 
 candronex:
   drone-service:

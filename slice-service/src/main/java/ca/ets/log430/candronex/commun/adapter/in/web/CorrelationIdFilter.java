@@ -26,6 +26,10 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
     public static final String EN_TETE = "X-Correlation-Id";
     public static final String CLE_MDC = "correlationId";
 
+    // Commande concernée, transmise d'un service à l'autre (absente de KrakenD : un client ne peut pas l'injecter)
+    public static final String EN_TETE_COMMANDE = "X-Commande-Id";
+    public static final String CLE_MDC_COMMANDE = "commandeId";
+
     // Un identifiant fourni par le client n'est accepté que s'il est sûr :
     // empêche l'injection de fausses lignes dans les journaux (retours à la ligne, etc.)
     private static final Pattern FORMAT = Pattern.compile("[A-Za-z0-9-]{1,64}");
@@ -37,11 +41,16 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
         String id = (recu != null && FORMAT.matcher(recu).matches()) ? recu : UUID.randomUUID().toString();
 
         MDC.put(CLE_MDC, id);
+        String commandeId = requete.getHeader(EN_TETE_COMMANDE);
+        if (commandeId != null && FORMAT.matcher(commandeId).matches()) {
+            MDC.put(CLE_MDC_COMMANDE, commandeId);
+        }
         reponse.setHeader(EN_TETE, id);   // posé avant le traitement : présent même sur les erreurs
         try {
             chaine.doFilter(requete, reponse);
         } finally {
             MDC.remove(CLE_MDC);          // le fil d'exécution est réutilisé pour d'autres requêtes
+            MDC.remove(CLE_MDC_COMMANDE);
         }
     }
 }

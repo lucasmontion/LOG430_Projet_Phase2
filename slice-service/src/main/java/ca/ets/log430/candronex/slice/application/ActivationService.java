@@ -44,6 +44,7 @@ public class ActivationService {
     /** UC-06, étapes 1-2 : accepter la demande (idempotente) et lancer l'activation en arrière-plan. */
     public ResultatDemande demander(DemanderActivationCommand demande) {
         OrigineCommande origine = new OrigineCommande(demande.commandeId(), demande.elementId());
+        MDC.put(CLE_MDC_COMMANDE, demande.commandeId().toString());   // retiré en fin de requête par CorrelationIdFilter
         log.info("[application] ActivationService.demander commandeId={} elementId={} typeService={}",
                 demande.commandeId(), demande.elementId(), demande.typeService());
 

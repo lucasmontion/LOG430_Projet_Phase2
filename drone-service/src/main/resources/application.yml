@@ -31,4 +31,4 @@ management:
 
 logging:
   pattern:
-    level: "%5p [drone-service] [corr=%X{correlationId:-}]"
+    level: "%5p [drone-service] [corr=%X{correlationId:-}] [commandeId=%X{commandeId:-}]"

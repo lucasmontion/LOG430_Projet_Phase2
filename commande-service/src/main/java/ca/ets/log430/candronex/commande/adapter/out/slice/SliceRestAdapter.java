@@ -55,6 +55,7 @@ class SliceRestAdapter implements ActivationPort {
                     .uri("/api/slice-service/v1/activation")
                     .header(HttpHeaders.AUTHORIZATION, jetonCourant())
                     .header(CorrelationIdFilter.EN_TETE, MDC.get(CorrelationIdFilter.CLE_MDC))
+                    .header(CorrelationIdFilter.EN_TETE_COMMANDE, commandeId.valeur().toString())
                     .body(demande)
                     .retrieve()
                     .body(ServiceDto.class);
@@ -72,6 +73,7 @@ class SliceRestAdapter implements ActivationPort {
                     .uri("/api/slice-service/v1/service?commandeId={id}", commandeId.valeur())
                     .header(HttpHeaders.AUTHORIZATION, jetonCourant())
                     .header(CorrelationIdFilter.EN_TETE, MDC.get(CorrelationIdFilter.CLE_MDC))
+                    .header(CorrelationIdFilter.EN_TETE_COMMANDE, commandeId.valeur().toString())
                     .retrieve()
                     .body(new ParameterizedTypeReference<>() {});
             return Optional.of(services.stream().collect(Collectors.toMap(

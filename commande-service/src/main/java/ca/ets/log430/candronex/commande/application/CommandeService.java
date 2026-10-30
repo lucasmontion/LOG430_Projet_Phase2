@@ -7,6 +7,7 @@ import ca.ets.log430.candronex.commun.domaine.ClientId;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -24,6 +25,7 @@ import java.util.Optional;
 @Service
 public class CommandeService {
     private static final Logger log = LoggerFactory.getLogger(CommandeService.class);
+    static final String CLE_MDC_COMMANDE = "commandeId";   // retiré en fin de requête par CorrelationIdFilter
 
     private final CommandeRepository commandeRepository;
     private final VerificationDronePort verificationDrone;
@@ -54,6 +56,7 @@ public class CommandeService {
         // et permet de rattraper une activation qui n'avait pas pu être demandée.
         Optional<Commande> existante = commandeRepository.trouverParCle(clientId, cle);
         if (existante.isPresent()) {
+            MDC.put(CLE_MDC_COMMANDE, existante.get().id().valeur().toString());
             log.info("[application] rejeu détecté, commande existante commandeId={}", existante.get().id().valeur());
             demanderActivations(existante.get());
             return new ResultatCommande(existante.get(), false);
@@ -66,6 +69,7 @@ public class CommandeService {
                 .toList();
 
         Commande nouvelle = Commande.creer(clientId, cle, elements);
+        MDC.put(CLE_MDC_COMMANDE, nouvelle.id().valeur().toString());
         commandeRepository.sauvegarder(nouvelle);
         log.info("[application] commande créée commandeId={} elements={} etat={}",
                 nouvelle.id().valeur(), elements.size(), nouvelle.etat());
@@ -112,6 +116,7 @@ public class CommandeService {
     /** Consultation d'une commande, toujours filtrée par client ; l'état des éléments vient de l'inventaire. */
     public Commande consulter(String clientId, String commandeId) {
         CommandeId id = CommandeId.depuis(commandeId);
+        MDC.put(CLE_MDC_COMMANDE, id.valeur().toString());
         Commande commande = commandeRepository.trouver(new ClientId(clientId), id)
                 .orElseThrow(() -> new CommandeIntrouvableException(id));
         activation.etatsDesElements(commande.clientId(), commande.id())

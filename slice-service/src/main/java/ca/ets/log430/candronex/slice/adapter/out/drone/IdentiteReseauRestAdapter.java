@@ -49,6 +49,10 @@ class IdentiteReseauRestAdapter implements IdentiteReseauPort {
                     .uri("/api/drone-service/v1/drone/{droneId}/identite-reseau", droneId.valeur())
                     .header(HttpHeaders.AUTHORIZATION, jetonCourant())
                     .header(CorrelationIdFilter.EN_TETE, MDC.get(CorrelationIdFilter.CLE_MDC))
+                    .headers(h -> {
+                        String commandeId = MDC.get(CorrelationIdFilter.CLE_MDC_COMMANDE);
+                        if (commandeId != null) h.set(CorrelationIdFilter.EN_TETE_COMMANDE, commandeId);
+                    })
                     .retrieve()
                     .body(IdentiteDto.class);
             if (!"ACTIF".equals(identite.statut())) {
