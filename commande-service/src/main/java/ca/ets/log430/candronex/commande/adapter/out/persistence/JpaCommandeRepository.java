@@ -4,6 +4,7 @@ import ca.ets.log430.candronex.commande.domain.*;
 import ca.ets.log430.candronex.commun.domaine.ClientId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,12 +26,22 @@ public class JpaCommandeRepository implements CommandeRepository {
         this.mapper = mapper;
     }
 
+    /**
+     * La contrainte UNIQUE (client_id, cle_idempotence) tranche entre deux requêtes simultanées.
+     * Volontairement SANS @Transactional : saveAndFlush s'exécute dans sa propre transaction,
+     * ce qui permet de relire la commande gagnante après l'échec.
+     */
     @Override
-    @Transactional
-    public void sauvegarder(Commande commande) {
-        log.info("[adapter.out] JpaCommandeRepository.sauvegarder commandeId={} elements={}",
-                commande.id().valeur(), commande.elements().size());
-        jpa.save(mapper.versEntite(commande));
+    public Commande enregistrerSiAbsent(Commande commande) {
+        try {
+            jpa.saveAndFlush(mapper.versEntite(commande));
+            log.info("[adapter.out] JpaCommandeRepository.enregistrer commandeId={} elements={}",
+                    commande.id().valeur(), commande.elements().size());
+            return commande;
+        } catch (DataIntegrityViolationException e) {
+            log.info("[adapter.out] requête simultanée avec la même clé : commande existante conservée");
+            return trouverParCle(commande.clientId(), commande.cleIdempotence()).orElseThrow(() -> e);
+        }
     }
 
     @Override

@@ -41,7 +41,7 @@ class CommandeTest {
     void refuseDeuxFoisLeMemeServicePourLeMemeDrone() {
         assertThatThrownBy(() -> Commande.creer(client, cle, List.of(
                 element("DRONE-001", "C2", C2), element("DRONE-001", "C2", C2))))
-                .isInstanceOf(DonneeInvalideException.class);
+                .isInstanceOf(ElementEnDoubleException.class);
     }
 
     @Test

@@ -11,8 +11,18 @@ import java.util.Optional;
 class CommandeRepositoryEnMemoire implements CommandeRepository {
     final List<Commande> commandes = new ArrayList<>();
 
+    /** Simule une requête simultanée : la prochaine lecture par clé ne voit pas encore la commande déjà enregistrée. */
+    boolean lectureEnRetard = false;
+
     @Override
-    public void sauvegarder(Commande commande) { commandes.add(commande); }
+    public Commande enregistrerSiAbsent(Commande commande) {
+        Optional<Commande> existante = trouverParCle(commande.clientId(), commande.cleIdempotence());
+        if (existante.isPresent()) {
+            return existante.get();
+        }
+        commandes.add(commande);
+        return commande;
+    }
 
     @Override
     public Optional<Commande> trouver(ClientId clientId, CommandeId commandeId) {
@@ -23,6 +33,10 @@ class CommandeRepositoryEnMemoire implements CommandeRepository {
 
     @Override
     public Optional<Commande> trouverParCle(ClientId clientId, CleIdempotence cle) {
+        if (lectureEnRetard) {
+            lectureEnRetard = false;
+            return Optional.empty();
+        }
         return commandes.stream()
                 .filter(c -> c.appartientA(clientId) && c.cleIdempotence().equals(cle))
                 .findFirst();

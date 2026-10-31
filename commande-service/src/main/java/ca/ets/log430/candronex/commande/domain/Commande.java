@@ -33,8 +33,7 @@ public class Commande {
         for (int i = 0; i < elements.size(); i++) {
             for (int j = i + 1; j < elements.size(); j++) {
                 if (elements.get(i).viseLeMemeServiceQue(elements.get(j))) {
-                    throw new DonneeInvalideException("ELEMENT_EN_DOUBLE",
-                            "Deux éléments demandent le même service pour le même drone");
+                    throw new ElementEnDoubleException();   // requête bien formée, mais incohérente : 422
                 }
             }
         }

@@ -38,7 +38,8 @@ class CommandeServiceTest {
         CatalogueFacade catalogueFacade = mock(CatalogueFacade.class);
         VerificationDronePort drones = (client, drone) -> switch (drone.valeur()) {
             case "DRONE-001" -> client.valeur().equals("CLIENT-001")
-                    ? Optional.of(new DroneVerifie(drone, "ACTIF")) : Optional.empty();
+                    ? Optional.of(new DroneVerifie(drone, "ACTIF"))
+                    : Optional.empty();
             case "DRONE-SUSPENDU" -> Optional.of(new DroneVerifie(drone, "SUSPENDU"));
             default -> Optional.empty();
         };
@@ -50,7 +51,8 @@ class CommandeServiceTest {
         when(catalogueFacade.trouverSpecification("C2")).thenReturn(Optional.of(
                 new SpecificationDto("C2", "C&C Connectivity", 2, "000001", "c2", 7, 2, "20 Mbps", "20 Mbps")));
         when(catalogueFacade.trouverSpecification("IMAGERIE")).thenReturn(Optional.of(
-                new SpecificationDto("IMAGERIE", "Imagery Connectivity", 1, "000002", "imagery", 9, 8, "500 Mbps", "100 Mbps")));
+                new SpecificationDto("IMAGERIE", "Imagery Connectivity", 1, "000002", "imagery", 9, 8, "500 Mbps",
+                        "100 Mbps")));
     }
 
     private PasserCommandeCommand commande(String cle, PasserCommandeCommand.Element... elements) {
@@ -63,11 +65,12 @@ class CommandeServiceTest {
 
     @Test
     void creeUneCommandeC2EtImagerieAvecLesCaracteristiquesCopiees() { // scénario de démo de l'énoncé
-        ResultatCommande resultat = service.passer(commande("cle-1", el("DRONE-001", "C2"), el("DRONE-001", "IMAGERIE")));
+        ResultatCommande resultat = service
+                .passer(commande("cle-1", el("DRONE-001", "C2"), el("DRONE-001", "IMAGERIE")));
 
         Commande commande = resultat.commande();
         assertThat(resultat.nouvelle()).isTrue();
-        assertThat(commande.etat()).isEqualTo(EtatCommande.EN_COURS);   // activation demandée pour chaque élément
+        assertThat(commande.etat()).isEqualTo(EtatCommande.EN_COURS); // activation demandée pour chaque élément
         assertThat(commande.elements()).hasSize(2);
         assertThat(commande.elements().get(0).caracteristiques().arp()).isEqualTo(2);
         assertThat(commande.elements().get(1).caracteristiques().ambrMontant()).isEqualTo("500 Mbps");
@@ -128,12 +131,13 @@ class CommandeServiceTest {
 
     @Test
     void demandeLActivationDeChaqueElementAvecAcceptedAt() {
-        Commande commande = service.passer(commande("cle-1", el("DRONE-001", "C2"), el("DRONE-001", "IMAGERIE"))).commande();
+        Commande commande = service.passer(commande("cle-1", el("DRONE-001", "C2"), el("DRONE-001", "IMAGERIE")))
+                .commande();
 
         assertThat(activation.demandes).hasSize(2);
         assertThat(activation.demandes).allSatisfy(d -> {
             assertThat(d.commandeId()).isEqualTo(commande.id());
-            assertThat(d.acceptedAt()).isEqualTo(ACCEPTEE);   // début de la mesure du P95
+            assertThat(d.acceptedAt()).isEqualTo(ACCEPTEE); // début de la mesure du P95
         });
     }
 
@@ -162,19 +166,56 @@ class CommandeServiceTest {
 
     @Test
     void laConsultationRefleteLEtatDesServicesDeLInventaire() { // résultat partiel : C2 en échec, Imagerie actif
-        Commande commande = service.passer(commande("cle-1", el("DRONE-001", "C2"), el("DRONE-001", "IMAGERIE"))).commande();
+        Commande commande = service.passer(commande("cle-1", el("DRONE-001", "C2"), el("DRONE-001", "IMAGERIE")))
+                .commande();
         activation.etats = Map.of(
                 commande.elements().get(0).id(), EtatElement.ECHEC,
                 commande.elements().get(1).id(), EtatElement.ACTIF);
 
         Commande consultee = service.consulter("CLIENT-001", commande.id().valeur().toString());
 
-        assertThat(consultee.etat()).isEqualTo(EtatCommande.PARTIELLE);   // un échec du C2 n'est jamais masqué
+        assertThat(consultee.etat()).isEqualTo(EtatCommande.PARTIELLE); // un échec du C2 n'est jamais masqué
     }
 
-    /** Faux ActivationPort : enregistre les demandes et simule la disponibilité de slice-service. */
+    @Test
+    void uneMemeCleAvecUnContenuDifferentEstRefusee() { // 409 : ce n'est pas un rejeu
+        service.passer(commande("cle-1", el("DRONE-001", "C2")));
+
+        assertThatThrownBy(() -> service.passer(commande("cle-1", el("DRONE-001", "IMAGERIE"))))
+                .isInstanceOf(CleIdempotenceReutiliseeException.class);
+        assertThat(repository.commandes).hasSize(1);
+    }
+
+    @Test
+    void leMemeContenuDansUnAutreOrdreEstUnRejeu() {
+        Commande premiere = service.passer(commande("cle-1", el("DRONE-001", "C2"), el("DRONE-001", "IMAGERIE")))
+                .commande();
+
+        ResultatCommande rejeu = service.passer(commande("cle-1", el("DRONE-001", "IMAGERIE"), el("DRONE-001", "C2")));
+
+        assertThat(rejeu.nouvelle()).isFalse();
+        assertThat(rejeu.commande().id()).isEqualTo(premiere.id());
+    }
+
+    @Test
+    void deuxRequetesSimultaneesAvecLaMemeCleNeCreentQuUneCommande() {
+        Commande gagnante = service.passer(commande("cle-1", el("DRONE-001", "C2"))).commande();
+        repository.lectureEnRetard = true; // la 2e requête a vérifié la clé avant que la 1re soit enregistrée
+
+        ResultatCommande perdante = service.passer(commande("cle-1", el("DRONE-001", "C2")));
+
+        assertThat(perdante.nouvelle()).isFalse();
+        assertThat(perdante.commande().id()).isEqualTo(gagnante.id());
+        assertThat(repository.commandes).hasSize(1);
+    }
+
+    /**
+     * Faux ActivationPort : enregistre les demandes et simule la disponibilité de
+     * slice-service.
+     */
     static class ActivationEnMemoire implements ActivationPort {
-        record Demande(CommandeId commandeId, ElementId elementId, Instant acceptedAt) {}
+        record Demande(CommandeId commandeId, ElementId elementId, Instant acceptedAt) {
+        }
 
         final List<Demande> demandes = new java.util.ArrayList<>();
         boolean disponible = true;
@@ -182,9 +223,10 @@ class CommandeServiceTest {
 
         @Override
         public Optional<EtatElement> demanderActivation(ca.ets.log430.candronex.commun.domaine.ClientId clientId,
-                                                        CommandeId commandeId, ElementCommande element,
-                                                        Instant acceptedAt) {
-            if (!disponible) return Optional.empty();
+                CommandeId commandeId, ElementCommande element,
+                Instant acceptedAt) {
+            if (!disponible)
+                return Optional.empty();
             demandes.add(new Demande(commandeId, element.id(), acceptedAt));
             return Optional.of(EtatElement.EN_COURS);
         }

@@ -16,6 +16,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Service applicatif de la commande. Coordonne UC-04 puis déclenche UC-06 :
@@ -51,31 +53,60 @@ public class CommandeService {
         CleIdempotence cle = new CleIdempotence(commande.cleIdempotence());
         log.info("[application] CommandeService.passer clientId={} cle={}", clientId.valeur(), cle.valeur());
 
-        // Flux 1a : requête répétée -> la commande existante, sans rien recréer.
-        // La demande d'activation est renvoyée : elle est idempotente côté slice-service,
-        // et permet de rattraper une activation qui n'avait pas pu être demandée.
-        Optional<Commande> existante = commandeRepository.trouverParCle(clientId, cle);
-        if (existante.isPresent()) {
-            MDC.put(CLE_MDC_COMMANDE, existante.get().id().valeur().toString());
-            log.info("[application] rejeu détecté, commande existante commandeId={}", existante.get().id().valeur());
-            demanderActivations(existante.get());
-            return new ResultatCommande(existante.get(), false);
-        }
-
         List<PasserCommandeCommand.Element> demandes =
                 commande.elements() == null ? List.of() : commande.elements();
+
+        // Flux 1a : requête répétée -> la commande existante, sans rien recréer
+        Optional<Commande> existante = commandeRepository.trouverParCle(clientId, cle);
+        if (existante.isPresent()) {
+            return rejouer(existante.get(), demandes);
+        }
+
         List<ElementCommande> elements = demandes.stream()
                 .map(demande -> creerElement(clientId, demande))
                 .toList();
 
         Commande nouvelle = Commande.creer(clientId, cle, elements);
+        Commande enregistree = commandeRepository.enregistrerSiAbsent(nouvelle);
+        if (!enregistree.id().equals(nouvelle.id())) {
+            // Deux requêtes simultanées avec la même clé : l'autre a été enregistrée la première
+            return rejouer(enregistree, demandes);
+        }
         MDC.put(CLE_MDC_COMMANDE, nouvelle.id().valeur().toString());
-        commandeRepository.sauvegarder(nouvelle);
         log.info("[application] commande créée commandeId={} elements={} etat={}",
                 nouvelle.id().valeur(), elements.size(), nouvelle.etat());
 
         demanderActivations(nouvelle);   // UC-06, après l'enregistrement : la commande existe même si slice est indisponible
         return new ResultatCommande(nouvelle, true);
+    }
+
+    /**
+     * Rejeu : même clé ET même contenu -> la commande existante (200).
+     * La demande d'activation est renvoyée : elle est idempotente côté slice-service,
+     * et permet de rattraper une activation qui n'avait pas pu être demandée.
+     * Même clé mais contenu différent -> 409 : ce n'est pas un rejeu, c'est une erreur du client.
+     */
+    private ResultatCommande rejouer(Commande existante, List<PasserCommandeCommand.Element> demandes) {
+        MDC.put(CLE_MDC_COMMANDE, existante.id().valeur().toString());
+        if (!memeContenu(existante, demandes)) {
+            log.warn("[application] clé d'idempotence réutilisée avec un contenu différent commandeId={}",
+                    existante.id().valeur());
+            throw new CleIdempotenceReutiliseeException();
+        }
+        log.info("[application] rejeu détecté, commande existante commandeId={}", existante.id().valeur());
+        demanderActivations(existante);
+        return new ResultatCommande(existante, false);
+    }
+
+    /** Même contenu = mêmes couples (drone, service), dans n'importe quel ordre. */
+    private static boolean memeContenu(Commande existante, List<PasserCommandeCommand.Element> demandes) {
+        Set<List<String>> demandees = demandes.stream()
+                .map(d -> List.of(d.droneId(), d.typeService()))
+                .collect(Collectors.toSet());
+        Set<List<String>> enregistrees = existante.elements().stream()
+                .map(e -> List.of(e.droneId().valeur(), e.typeService().valeur()))
+                .collect(Collectors.toSet());
+        return demandes.size() == existante.elements().size() && demandees.equals(enregistrees);
     }
 
     /** UC-06, étape 1 : demander l'activation de chaque élément ; acceptedAt marque le début de la mesure du P95. */

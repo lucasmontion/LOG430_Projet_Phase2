@@ -36,9 +36,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Tests d'intégration de UC-04 : commande-service démarre en entier (sécurité, contrôleur, Flyway, JPA sur H2)
+ * Tests d'intégration de UC-04 : commande-service démarre en entier (sécurité,
+ * contrôleur, Flyway, JPA sur H2)
  * et il est appelé en HTTP. Seul ce qui sort du service est remplacé :
- * Keycloak (décodeur de jeton), drone-service (VerificationDronePort) et slice-service (ActivationPort).
+ * Keycloak (décodeur de jeton), drone-service (VerificationDronePort) et
+ * slice-service (ActivationPort).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -47,12 +49,17 @@ class CommandeIntegrationTest {
     static final String AEROTECH = "jeton-aerotech";
     static final String INVALIDE = "jeton-invalide";
 
-    @Autowired MockMvc mvc;
-    @Autowired JdbcTemplate jdbc;
+    @Autowired
+    MockMvc mvc;
+    @Autowired
+    JdbcTemplate jdbc;
 
-    @MockitoBean JwtDecoder decodeurJwt;
-    @MockitoBean VerificationDronePort verificationDrone;
-    @MockitoBean ActivationPort activation;
+    @MockitoBean
+    JwtDecoder decodeurJwt;
+    @MockitoBean
+    VerificationDronePort verificationDrone;
+    @MockitoBean
+    ActivationPort activation;
 
     @BeforeEach
     void preparerLesDoublures() {
@@ -108,7 +115,7 @@ class CommandeIntegrationTest {
         String commandeId = champ(passerCommande(INSPECTRA, UUID.randomUUID().toString()), "$.commandeId");
 
         mvc.perform(get("/api/commande-service/v1/commande/{id}", commandeId)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + AEROTECH))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + AEROTECH))
                 .andExpect(status().isNotFound());
     }
 
@@ -132,7 +139,37 @@ class CommandeIntegrationTest {
                 .andExpect(jsonPath("$.elements[0].etat").value("RECU"));
     }
 
-    /** Ce que Keycloak aurait émis pour ce client, une fois la signature vérifiée. */
+        @Test
+    void uneMemeCleAvecUnContenuDifferentDonne409() throws Exception {
+        String cle = UUID.randomUUID().toString();
+        passerCommande(INSPECTRA, cle).andExpect(status().isCreated());
+
+        passerCommande(INSPECTRA, cle, """
+                {"elements": [{"droneId": "DRONE-600", "typeService": "IMAGERIE"}]}
+                """)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CLE_IDEMPOTENCE_REUTILISEE"));
+
+        assertThat(nombreDeCommandes(cle)).isEqualTo(1);
+    }
+
+    @Test
+    void unElementEnDoubleDonne422EtRienNEstCree() throws Exception {
+        String cle = UUID.randomUUID().toString();
+
+        passerCommande(INSPECTRA, cle, """
+                {"elements": [{"droneId": "DRONE-600", "typeService": "C2"},
+                              {"droneId": "DRONE-600", "typeService": "C2"}]}
+                """)
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("ELEMENT_EN_DOUBLE"));
+
+        assertThat(nombreDeCommandes(cle)).isZero();
+    }
+
+    /**
+     * Ce que Keycloak aurait émis pour ce client, une fois la signature vérifiée.
+     */
     static Jwt jeton(String client) {
         Instant maintenant = Instant.now();
         return Jwt.withTokenValue("jeton-" + client)
@@ -146,12 +183,16 @@ class CommandeIntegrationTest {
 
     /** POST /commande avec une clé d'idempotence ; sans jeton si jeton == null. */
     ResultActions passerCommande(String jeton, String cle) throws Exception {
+        return passerCommande(jeton, cle, """
+                {"elements": [{"droneId": "DRONE-600", "typeService": "C2"}]}
+                """);
+    }
+
+    ResultActions passerCommande(String jeton, String cle, String corps) throws Exception {
         MockHttpServletRequestBuilder requete = post("/api/commande-service/v1/commande")
                 .header("Idempotency-Key", cle)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                        {"elements": [{"droneId": "DRONE-600", "typeService": "C2"}]}
-                        """);
+                .content(corps);
         if (jeton != null) {
             requete.header(HttpHeaders.AUTHORIZATION, "Bearer " + jeton);
         }
