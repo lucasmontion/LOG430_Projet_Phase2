@@ -19,6 +19,9 @@ public class SecuriteConfig {
         return http
                 .authorizeHttpRequests(regles -> regles
                         .requestMatchers("/actuator/health").permitAll()   // sondes Docker, sans jeton
+                        // contrat OpenAPI et Swagger UI, sans jeton : le service n'est joignable que du réseau interne
+                        .requestMatchers("/v3/api-docs", "/v3/api-docs.yaml", "/v3/api-docs/**",
+                                "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(o -> o
                         .jwt(Customizer.withDefaults())

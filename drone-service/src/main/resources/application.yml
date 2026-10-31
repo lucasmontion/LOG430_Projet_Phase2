@@ -23,6 +23,12 @@ spring:
       ddl-auto: validate      # Flyway crée le schéma ; Hibernate vérifie seulement
     open-in-view: false
 
+springdoc:
+  # Les erreurs sont documentées opération par opération (@ApiResponse), pas déduites de GestionnaireErreurs
+  override-with-generic-response: false
+  writer-with-order-by-keys: true   # YAML exporté stable d'une génération à l'autre (diff lisibles)
+  default-produces-media-type: application/json
+
 management:
   endpoints:
     web:

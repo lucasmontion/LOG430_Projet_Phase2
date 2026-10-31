@@ -13,8 +13,10 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.net.URI;
 
@@ -49,10 +51,11 @@ public class GestionnaireErreurs {
     }
 
     @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
-            MissingRequestHeaderException.class})
+            MissingRequestHeaderException.class, MissingServletRequestParameterException.class,
+            MethodArgumentTypeMismatchException.class})
     ResponseEntity<ProblemDetail> requeteInvalide(Exception e, HttpServletRequest requete) {
         return reponse(HttpStatus.BAD_REQUEST, "REQUETE_INVALIDE",
-                "Requête mal formée, ou champ ou en-tête obligatoire manquant", requete);
+                "Requête mal formée, ou champ, paramètre ou en-tête obligatoire manquant ou invalide", requete);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

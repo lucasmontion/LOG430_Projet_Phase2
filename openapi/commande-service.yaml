@@ -1,0 +1,358 @@
+openapi: 3.1.0
+info:
+  description: Contexte Commandes (UC-04) et catalogue des services. Une commande acceptée déclenche l'activation de chaque élément (UC-06) dans slice-service.
+  title: commande-service
+  version: v1
+servers:
+- url: http://commande-service:8082
+  description: "Réseau Docker interne seulement : de l'extérieur, passer par la passerelle"
+security:
+- jetonBearer: []
+tags:
+- description: "UC-04 : commander les services réseau des drones du client authentifié"
+  name: Commandes
+paths:
+  /api/commande-service/v1/commande:
+    post:
+      description: |-
+        Chaque élément associe un drone du client à un service du catalogue (C2, IMAGERIE). Les caractéristiques réseau sont copiées du catalogue, jamais fournies par le client. Une fois la commande enregistrée, l'activation de chaque élément est demandée à slice-service (UC-06) ; si slice-service est indisponible, la commande est tout de même créée (état RECUE).
+
+        Idempotence : renvoyer la même requête avec la même Idempotency-Key renvoie la commande existante (200), sans doublon.
+
+        Codes d'erreur : 400 REQUETE_INVALIDE, CLE_IDEMPOTENCE_INVALIDE, COMMANDE_VIDE, DRONE_ID_INVALIDE, TYPE_SERVICE_INVALIDE ; 404 DRONE_INTROUVABLE ; 409 CLE_IDEMPOTENCE_REUTILISEE ; 422 DRONE_NON_ELIGIBLE, SERVICE_INCONNU, ELEMENT_EN_DOUBLE ; 503 DRONE_SERVICE_INDISPONIBLE.
+      operationId: passer
+      parameters:
+      - description: "Clé choisie par le client (UUID conseillé, 100 caractères max.) : deux requêtes avec la même clé sont la même commande"
+        example: 8b0e6c52-3f1a-4d9e-b7c4-2a5d9e1f0c63
+        in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          maxLength: 100
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasserCommandeRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandeResponse"
+          description: "Rejeu : même clé et même contenu, la commande existante"
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandeResponse"
+          description: Commande créée ; activation demandée (état EN_COURS) ou en attente (RECUE)
+          headers:
+            Location:
+              description: URL de la commande créée
+              style: simple
+        "400":
+          $ref: "#/components/responses/RequeteInvalide"
+        "401":
+          $ref: "#/components/responses/NonAuthentifie"
+        "404":
+          $ref: "#/components/responses/Introuvable"
+        "409":
+          $ref: "#/components/responses/CleReutilisee"
+        "422":
+          $ref: "#/components/responses/RegleMetier"
+        "500":
+          $ref: "#/components/responses/ErreurInterne"
+        "503":
+          $ref: "#/components/responses/DependanceIndisponible"
+      summary: Commander des services pour ses drones (UC-04)
+      tags:
+      - Commandes
+  /api/commande-service/v1/commande/{commandeId}:
+    get:
+      description: |-
+        L'état de chaque élément est actualisé depuis l'inventaire de slice-service ; s'il est indisponible, le dernier état connu est renvoyé. La commande d'un autre client donne 404.
+
+        Codes d'erreur : 400 COMMANDE_ID_INVALIDE ; 404 COMMANDE_INTROUVABLE.
+      operationId: consulter
+      parameters:
+      - description: Identifiant de la commande (UUID)
+        example: 6f1c2a9e-0b7d-4c3e-9a51-8d2e4f6b1a07
+        in: path
+        name: commandeId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandeResponse"
+          description: La commande et l'état de ses éléments
+        "400":
+          $ref: "#/components/responses/RequeteInvalide"
+        "401":
+          $ref: "#/components/responses/NonAuthentifie"
+        "404":
+          $ref: "#/components/responses/Introuvable"
+        "500":
+          $ref: "#/components/responses/ErreurInterne"
+      summary: Consulter une commande du client (UC-04)
+      tags:
+      - Commandes
+components:
+  responses:
+    CleReutilisee:
+      content:
+        application/problem+json:
+          example:
+            code: CLE_IDEMPOTENCE_REUTILISEE
+            correlationId: 3f2b8c1e-5d0a-4e7b-9c61-2a4f8e0d7b13
+            detail: Cette clé d'idempotence a déjà servi pour une commande au contenu différent
+            status: 409
+            title: Conflict
+            type: urn:candronex:erreur:CLE_IDEMPOTENCE_REUTILISEE
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+      description: "Même Idempotency-Key qu'une commande existante, mais contenu différent. Codes : CLE_IDEMPOTENCE_REUTILISEE, CONFLIT_DONNEES"
+    DependanceIndisponible:
+      content:
+        application/problem+json:
+          example:
+            code: DRONE_SERVICE_INDISPONIBLE
+            correlationId: 3f2b8c1e-5d0a-4e7b-9c61-2a4f8e0d7b13
+            detail: Le service des drones est momentanément indisponible
+            status: 503
+            title: Service Unavailable
+            type: urn:candronex:erreur:DRONE_SERVICE_INDISPONIBLE
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+      description: "drone-service ne répond pas : la commande n'est pas créée et peut être renvoyée avec la même clé. Code : DRONE_SERVICE_INDISPONIBLE"
+    ErreurInterne:
+      content:
+        application/problem+json:
+          example:
+            code: ERREUR_INTERNE
+            correlationId: 3f2b8c1e-5d0a-4e7b-9c61-2a4f8e0d7b13
+            detail: Erreur interne. Communiquez le correlationId au support.
+            status: 500
+            title: Internal Server Error
+            type: urn:candronex:erreur:ERREUR_INTERNE
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+      description: Erreur inattendue ; aucun détail technique n'est exposé
+    Introuvable:
+      content:
+        application/problem+json:
+          example:
+            code: COMMANDE_INTROUVABLE
+            correlationId: 3f2b8c1e-5d0a-4e7b-9c61-2a4f8e0d7b13
+            detail: Commande 6f1c2a9e-0b7d-4c3e-9a51-8d2e4f6b1a07 introuvable
+            status: 404
+            title: Not Found
+            type: urn:candronex:erreur:COMMANDE_INTROUVABLE
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+      description: "Ressource inexistante OU appartenant à un autre client (indiscernables). Codes : COMMANDE_INTROUVABLE, DRONE_INTROUVABLE"
+    NonAuthentifie:
+      content:
+        application/problem+json:
+          example:
+            code: NON_AUTHENTIFIE
+            correlationId: 3f2b8c1e-5d0a-4e7b-9c61-2a4f8e0d7b13
+            detail: "Jeton Bearer absent, invalide ou expiré"
+            status: 401
+            title: Unauthorized
+            type: urn:candronex:erreur:NON_AUTHENTIFIE
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+      description: "Jeton Bearer absent, invalide ou expiré (en-tête WWW-Authenticate: Bearer)"
+    RegleMetier:
+      content:
+        application/problem+json:
+          example:
+            code: DRONE_NON_ELIGIBLE
+            correlationId: 3f2b8c1e-5d0a-4e7b-9c61-2a4f8e0d7b13
+            detail: Le drone DRONE-600 n'est pas actif (statut SUSPENDU)
+            status: 422
+            title: Unprocessable Entity
+            type: urn:candronex:erreur:DRONE_NON_ELIGIBLE
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+      description: "Requête bien formée, mais refusée par une règle métier. Codes : DRONE_NON_ELIGIBLE, SERVICE_INCONNU, ELEMENT_EN_DOUBLE"
+    RequeteInvalide:
+      content:
+        application/problem+json:
+          example:
+            code: REQUETE_INVALIDE
+            correlationId: 3f2b8c1e-5d0a-4e7b-9c61-2a4f8e0d7b13
+            detail: "Requête mal formée, ou champ, paramètre ou en-tête obligatoire manquant ou invalide"
+            status: 400
+            title: Bad Request
+            type: urn:candronex:erreur:REQUETE_INVALIDE
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+      description: "Requête invalide : corps mal formé, champ ou en-tête obligatoire manquant, ou format refusé par le domaine"
+  schemas:
+    CaracteristiquesResponse:
+      type: object
+      description: Caractéristiques réseau copiées du catalogue au moment de la commande (figées)
+      properties:
+        ambrDescendant:
+          type: string
+          description: Débit agrégé maximal descendant
+          example: 20 Mbps
+        ambrMontant:
+          type: string
+          description: Débit agrégé maximal montant
+          example: 20 Mbps
+        arp:
+          type: integer
+          format: int32
+          description: Priorité d'allocation et de rétention
+          example: 2
+        dnn:
+          type: string
+          description: Data Network Name
+          example: c2
+        fiveQi:
+          type: integer
+          format: int32
+          description: Classe de qualité de service 5G
+          example: 7
+        sd:
+          type: string
+          description: Slice Differentiator
+          example: "000001"
+        sst:
+          type: integer
+          format: int32
+          description: Slice/Service Type
+          example: 2
+    CommandeResponse:
+      type: object
+      description: Commande du client
+      properties:
+        commandeId:
+          type: string
+          example: 6f1c2a9e-0b7d-4c3e-9a51-8d2e4f6b1a07
+        elements:
+          type: array
+          items:
+            $ref: "#/components/schemas/ElementResponse"
+        etat:
+          type: string
+          description: Dérivé de l'état des éléments
+          enum:
+          - RECUE
+          - EN_COURS
+          - COMPLETEE
+          - PARTIELLE
+          - ECHOUEE
+          - ANNULEE
+          example: EN_COURS
+    ElementDemande:
+      type: object
+      description: Un service demandé pour un drone du client
+      properties:
+        droneId:
+          type: string
+          description: "Drone enregistré par ce client, à l'état ACTIF"
+          example: DRONE-600
+          minLength: 1
+        typeService:
+          type: string
+          description: Service du catalogue
+          enum:
+          - C2
+          - IMAGERIE
+          example: C2
+          minLength: 1
+      required:
+      - droneId
+      - typeService
+    ElementResponse:
+      type: object
+      description: "Un élément de la commande : un service pour un drone"
+      properties:
+        caracteristiques:
+          $ref: "#/components/schemas/CaracteristiquesResponse"
+        droneId:
+          type: string
+          example: DRONE-600
+        elementId:
+          type: string
+          example: 0c9a7d3b-6e2f-4a81-b5d0-3f7e1c8a2b94
+        etat:
+          type: string
+          enum:
+          - RECU
+          - EN_COURS
+          - ACTIF
+          - ECHEC
+          - ANNULE
+          - COMPENSE
+          example: EN_COURS
+        typeService:
+          type: string
+          example: C2
+    PasserCommandeRequest:
+      type: object
+      description: "Commande : au moins un élément, sans doublon (drone, service)"
+      properties:
+        elements:
+          type: array
+          items:
+            $ref: "#/components/schemas/ElementDemande"
+          minItems: 1
+      required:
+      - elements
+    ProblemDetails:
+      type: object
+      description: "Format d'erreur uniforme des 3 services (RFC 9457, application/problem+json)"
+      properties:
+        code:
+          type: string
+          description: "Code stable, destiné aux programmes clients"
+          example: DRONE_INTROUVABLE
+        correlationId:
+          type: string
+          description: Identifiant de la requête dans les journaux (en-tête X-Correlation-Id)
+          example: 3f2b8c1e-5d0a-4e7b-9c61-2a4f8e0d7b13
+        detail:
+          type: string
+          description: Explication lisible par un humain
+          example: Drone DRONE-600 introuvable
+        instance:
+          type: string
+          format: uri
+          description: Chemin de la requête
+          example: /api/drone-service/v1/drone/DRONE-600
+        status:
+          type: integer
+          format: int32
+          description: Statut HTTP
+          example: 404
+        title:
+          type: string
+          description: Libellé du statut HTTP
+          example: Not Found
+        type:
+          type: string
+          format: uri
+          description: Identifiant du type d'erreur
+          example: urn:candronex:erreur:DRONE_INTROUVABLE
+      required:
+      - code
+      - status
+      - title
+      - type
+  securitySchemes:
+    jetonBearer:
+      bearerFormat: JWT
+      description: "Jeton d'accès émis par Keycloak (realm candronex, audience candronex-api). Le client est identifié par la claim azp du jeton vérifié."
+      scheme: bearer
+      type: http

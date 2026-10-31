@@ -51,6 +51,13 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!-- Contrat OpenAPI (/v3/api-docs) et Swagger UI, générés à partir des contrôleurs -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>${springdoc.version}</version>
+        </dependency>
+
         <!-- Tests -->
         <dependency>
             <groupId>com.h2database</groupId>

@@ -1,0 +1,307 @@
+openapi: 3.1.0
+info:
+  description: Contexte Gestion des drones (UC-02). Les routes marquées « Interne » ne sont pas exposées par la passerelle.
+  title: drone-service
+  version: v1
+servers:
+- url: http://drone-service:8081
+  description: "Réseau Docker interne seulement : de l'extérieur, passer par la passerelle"
+security:
+- jetonBearer: []
+tags:
+- description: "UC-02 : enregistrer et consulter les drones du client authentifié"
+  name: Drones
+paths:
+  /api/drone-service/v1/drone:
+    post:
+      description: |-
+        Associe un drone et son identité réseau (IMSI, ICCID) au client du jeton. L'IMSI et l'ICCID ne sont jamais renvoyés.
+
+        Codes d'erreur : 400 REQUETE_INVALIDE, DRONE_ID_INVALIDE, IMSI_INVALIDE, ICCID_INVALIDE, TYPE_SIM_INVALIDE ; 409 DRONE_DEJA_ENREGISTRE, IMSI_DEJA_UTILISE, ICCID_DEJA_UTILISE, CONFLIT_DONNEES.
+      operationId: enregistrer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnregistrerDroneRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DroneResponse"
+          description: "Drone enregistré, statut ACTIF"
+          headers:
+            Location:
+              description: URL du drone créé
+              style: simple
+        "400":
+          $ref: "#/components/responses/RequeteInvalide"
+        "401":
+          $ref: "#/components/responses/NonAuthentifie"
+        "409":
+          $ref: "#/components/responses/DroneEnConflit"
+        "500":
+          $ref: "#/components/responses/ErreurInterne"
+      summary: Enregistrer un drone (UC-02)
+      tags:
+      - Drones
+  /api/drone-service/v1/drone/{droneId}:
+    get:
+      description: |-
+        Sans IMSI ni ICCID. Le drone d'un autre client donne 404, comme un drone inexistant.
+
+        Codes d'erreur : 400 DRONE_ID_INVALIDE ; 404 DRONE_INTROUVABLE.
+      operationId: consulter
+      parameters:
+      - description: Identifiant du drone choisi par le client
+        example: DRONE-600
+        in: path
+        name: droneId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DroneResponse"
+          description: Le drone
+        "400":
+          $ref: "#/components/responses/RequeteInvalide"
+        "401":
+          $ref: "#/components/responses/NonAuthentifie"
+        "404":
+          $ref: "#/components/responses/DroneIntrouvable"
+        "500":
+          $ref: "#/components/responses/ErreurInterne"
+      summary: Consulter un drone du client (UC-02)
+      tags:
+      - Drones
+  /api/drone-service/v1/drone/{droneId}/identite-reseau:
+    get:
+      description: |-
+        Appelée par slice-service au moment de l'activation. Absente de la passerelle. Seule réponse qui contient l'IMSI ; toujours filtrée par le client du jeton.
+
+        Codes d'erreur : 400 DRONE_ID_INVALIDE ; 404 DRONE_INTROUVABLE.
+      operationId: identiteReseau
+      parameters:
+      - description: Identifiant du drone
+        example: DRONE-600
+        in: path
+        name: droneId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdentiteReseauResponse"
+          description: Identité réseau du drone
+        "400":
+          $ref: "#/components/responses/RequeteInvalide"
+        "401":
+          $ref: "#/components/responses/NonAuthentifie"
+        "404":
+          $ref: "#/components/responses/DroneIntrouvable"
+        "500":
+          $ref: "#/components/responses/ErreurInterne"
+      summary: "Identité réseau d'un drone (interne, UC-06)"
+      tags:
+      - Interne
+      - Drones
+components:
+  responses:
+    DroneEnConflit:
+      content:
+        application/problem+json:
+          example:
+            code: IMSI_DEJA_UTILISE
+            correlationId: 3f2b8c1e-5d0a-4e7b-9c61-2a4f8e0d7b13
+            detail: Cet IMSI est déjà associé à un drone
+            status: 409
+            title: Conflict
+            type: urn:candronex:erreur:IMSI_DEJA_UTILISE
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+      description: "Codes : DRONE_DEJA_ENREGISTRE (même droneId pour ce client), IMSI_DEJA_UTILISE, ICCID_DEJA_UTILISE (uniques dans tout le système), CONFLIT_DONNEES (doublon détecté par la base)"
+    DroneIntrouvable:
+      content:
+        application/problem+json:
+          example:
+            code: DRONE_INTROUVABLE
+            correlationId: 3f2b8c1e-5d0a-4e7b-9c61-2a4f8e0d7b13
+            detail: Drone DRONE-600 introuvable
+            status: 404
+            title: Not Found
+            type: urn:candronex:erreur:DRONE_INTROUVABLE
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+      description: "Drone inexistant OU appartenant à un autre client (indiscernables). Code : DRONE_INTROUVABLE"
+    ErreurInterne:
+      content:
+        application/problem+json:
+          example:
+            code: ERREUR_INTERNE
+            correlationId: 3f2b8c1e-5d0a-4e7b-9c61-2a4f8e0d7b13
+            detail: Erreur interne. Communiquez le correlationId au support.
+            status: 500
+            title: Internal Server Error
+            type: urn:candronex:erreur:ERREUR_INTERNE
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+      description: Erreur inattendue ; aucun détail technique n'est exposé
+    NonAuthentifie:
+      content:
+        application/problem+json:
+          example:
+            code: NON_AUTHENTIFIE
+            correlationId: 3f2b8c1e-5d0a-4e7b-9c61-2a4f8e0d7b13
+            detail: "Jeton Bearer absent, invalide ou expiré"
+            status: 401
+            title: Unauthorized
+            type: urn:candronex:erreur:NON_AUTHENTIFIE
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+      description: "Jeton Bearer absent, invalide ou expiré (en-tête WWW-Authenticate: Bearer)"
+    RequeteInvalide:
+      content:
+        application/problem+json:
+          example:
+            code: REQUETE_INVALIDE
+            correlationId: 3f2b8c1e-5d0a-4e7b-9c61-2a4f8e0d7b13
+            detail: "Requête mal formée, ou champ, paramètre ou en-tête obligatoire manquant ou invalide"
+            status: 400
+            title: Bad Request
+            type: urn:candronex:erreur:REQUETE_INVALIDE
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+      description: "Requête invalide : corps mal formé, champ ou en-tête obligatoire manquant, ou format refusé par le domaine"
+  schemas:
+    DroneResponse:
+      type: object
+      description: "Drone du client, sans identité réseau"
+      properties:
+        droneId:
+          type: string
+          example: DRONE-600
+        statut:
+          type: string
+          enum:
+          - ACTIF
+          - SUSPENDU
+          - RETIRE
+          example: ACTIF
+        typeSim:
+          type: string
+          enum:
+          - SIM
+          - ESIM
+          example: ESIM
+    EnregistrerDroneRequest:
+      type: object
+      description: Drone à enregistrer et son identité réseau
+      properties:
+        droneId:
+          type: string
+          description: "Choisi par le client, unique pour ce client"
+          example: DRONE-600
+          minLength: 1
+          pattern: "^[A-Za-z0-9-]{1,64}$"
+        iccid:
+          type: string
+          description: Unique dans tout le système ; jamais renvoyé
+          example: "8999970000000000101"
+          minLength: 1
+          pattern: "^[0-9]{19,20}$"
+        imsi:
+          type: string
+          description: Unique dans tout le système ; jamais renvoyé ni journalisé en clair
+          example: "999700000000001"
+          minLength: 1
+          pattern: "^[0-9]{15}$"
+        typeSim:
+          type: string
+          enum:
+          - SIM
+          - ESIM
+          example: ESIM
+          minLength: 1
+      required:
+      - droneId
+      - iccid
+      - imsi
+      - typeSim
+    IdentiteReseauResponse:
+      type: object
+      description: Identité réseau du drone (route interne seulement)
+      properties:
+        droneId:
+          type: string
+          example: DRONE-600
+        imsi:
+          type: string
+          example: "999700000000001"
+        statut:
+          type: string
+          enum:
+          - ACTIF
+          - SUSPENDU
+          - RETIRE
+          example: ACTIF
+        typeSim:
+          type: string
+          enum:
+          - SIM
+          - ESIM
+          example: ESIM
+    ProblemDetails:
+      type: object
+      description: "Format d'erreur uniforme des 3 services (RFC 9457, application/problem+json)"
+      properties:
+        code:
+          type: string
+          description: "Code stable, destiné aux programmes clients"
+          example: DRONE_INTROUVABLE
+        correlationId:
+          type: string
+          description: Identifiant de la requête dans les journaux (en-tête X-Correlation-Id)
+          example: 3f2b8c1e-5d0a-4e7b-9c61-2a4f8e0d7b13
+        detail:
+          type: string
+          description: Explication lisible par un humain
+          example: Drone DRONE-600 introuvable
+        instance:
+          type: string
+          format: uri
+          description: Chemin de la requête
+          example: /api/drone-service/v1/drone/DRONE-600
+        status:
+          type: integer
+          format: int32
+          description: Statut HTTP
+          example: 404
+        title:
+          type: string
+          description: Libellé du statut HTTP
+          example: Not Found
+        type:
+          type: string
+          format: uri
+          description: Identifiant du type d'erreur
+          example: urn:candronex:erreur:DRONE_INTROUVABLE
+      required:
+      - code
+      - status
+      - title
+      - type
+  securitySchemes:
+    jetonBearer:
+      bearerFormat: JWT
+      description: "Jeton d'accès émis par Keycloak (realm candronex, audience candronex-api). Le client est identifié par la claim azp du jeton vérifié."
+      scheme: bearer
+      type: http

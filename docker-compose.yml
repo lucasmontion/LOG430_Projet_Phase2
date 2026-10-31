@@ -30,6 +30,23 @@ services:
       - "${GATEWAY_PORT:-8080}:8080"
     depends_on:
       keycloak: { condition: service_healthy }
+  # Swagger UI : affiche les 4 contrats de openapi/ (passerelle + 3 services), http://localhost:8090.
+  # Les services n'ont aucun port ouvert : leurs contrats sont les fichiers exportés par mvn test.
+  # Depuis le contrat de la passerelle, « Authorize » obtient un jeton Keycloak (client credentials).
+  swagger-ui:
+    image: swaggerapi/swagger-ui:v5.17.14
+    environment:
+      URLS: >-
+        [{"url": "openapi/api-gateway.yaml", "name": "Passerelle (API publique)"},
+         {"url": "openapi/drone-service.yaml", "name": "drone-service"},
+         {"url": "openapi/commande-service.yaml", "name": "commande-service"},
+         {"url": "openapi/slice-service.yaml", "name": "slice-service"}]
+      URLS_PRIMARY_NAME: Passerelle (API publique)
+    volumes:
+      - ./openapi:/usr/share/nginx/html/openapi:ro
+    ports:
+      - "8090:8080"
+
   drone-db:
     image: postgres:16
     environment:

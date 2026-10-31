@@ -72,4 +72,12 @@ class ActivationIntegrationTest extends IntegrationSliceBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isEmpty());
     }
+
+    @Test
+    void unCommandeIdQuiNEstPasUnUuidDonne400EtNon500() throws Exception {
+        mvc.perform(get("/api/slice-service/v1/service").param("commandeId", "pas-un-uuid")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + INSPECTRA))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("REQUETE_INVALIDE"));
+    }
 }

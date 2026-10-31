@@ -78,7 +78,8 @@
       "secret": "${INSPECTRA_DEMO_SECRET}",
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": false,
-      "directAccessGrantsEnabled": false
+      "directAccessGrantsEnabled": false,
+      "webOrigins": ["http://localhost:8090"]
     },
     {
       "clientId": "aerotech-demo",
@@ -90,7 +91,8 @@
       "secret": "${AEROTECH_DEMO_SECRET}",
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": false,
-      "directAccessGrantsEnabled": false
+      "directAccessGrantsEnabled": false,
+      "webOrigins": ["http://localhost:8090"]
     },
     {
       "clientId": "jeton-court",

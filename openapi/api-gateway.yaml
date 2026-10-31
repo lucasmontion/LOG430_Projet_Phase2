@@ -1,0 +1,245 @@
+# Contrat PUBLIC de CanDroneX, tel qu'exposé par la passerelle KrakenD (krakend/krakend.json).
+# Écrit à la main : KrakenD ne génère pas d'OpenAPI. Il ne contient que les 5 routes publiques ;
+# les routes internes (identite-reseau, activation, service?commandeId=) ne sont pas exposées.
+# Les schémas et les erreurs ne sont pas recopiés : ils renvoient ($ref) aux contrats générés
+# à partir du code de chaque service (drone-service.yaml, commande-service.yaml, slice-service.yaml).
+openapi: 3.1.0
+info:
+  title: CanDroneX API (passerelle)
+  version: v1
+  description: |-
+    Point d'entrée unique des clients B2B. Chaque requête doit porter un jeton d'accès Keycloak
+    (flux OAuth2 client credentials, audience candronex-api). La passerelle vérifie le jeton (signature,
+    émetteur, audience, expiration), puis chaque service le vérifie de nouveau et identifie le client
+    par la claim azp. Un client ne voit jamais les ressources d'un autre client : il reçoit 404.
+
+    Les erreurs des services sont au format Problem Details (RFC 9457, application/problem+json).
+    Le refus par la passerelle elle-même (401) est renvoyé avant d'atteindre les services.
+
+    Obtenir un jeton :
+    POST http://localhost:8081/realms/candronex/protocol/openid-connect/token
+    grant_type=client_credentials, client_id, client_secret.
+servers:
+  - url: http://localhost:8088
+    description: Passerelle KrakenD (port de l'hôte fixé par GATEWAY_PORT dans .env)
+security:
+  - keycloak: []
+tags:
+  - name: Drones
+    description: "UC-02 : enregistrer et consulter ses drones"
+  - name: Commandes
+    description: "UC-04 : commander des services réseau pour ses drones"
+  - name: Services
+    description: "UC-06 : suivre l'état d'activation de ses services"
+paths:
+  /api/drone-service/v1/drone:
+    post:
+      tags: [Drones]
+      operationId: enregistrerDrone
+      summary: Enregistrer un drone (UC-02)
+      description: |-
+        Associe un drone et son identité réseau (IMSI, ICCID) au client du jeton.
+        L'IMSI et l'ICCID ne sont jamais renvoyés.
+
+        Codes d'erreur : 400 REQUETE_INVALIDE, DRONE_ID_INVALIDE, IMSI_INVALIDE, ICCID_INVALIDE, TYPE_SIM_INVALIDE ;
+        409 DRONE_DEJA_ENREGISTRE, IMSI_DEJA_UTILISE, ICCID_DEJA_UTILISE, CONFLIT_DONNEES.
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "drone-service.yaml#/components/schemas/EnregistrerDroneRequest"
+      responses:
+        "201":
+          description: Drone enregistré, statut ACTIF
+          headers:
+            Location:
+              description: URL du drone créé
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: "drone-service.yaml#/components/schemas/DroneResponse"
+        "400": { $ref: "drone-service.yaml#/components/responses/RequeteInvalide" }
+        "401": { $ref: "#/components/responses/RefusPasserelle" }
+        "409": { $ref: "drone-service.yaml#/components/responses/DroneEnConflit" }
+        "500": { $ref: "drone-service.yaml#/components/responses/ErreurInterne" }
+
+  /api/drone-service/v1/drone/{droneId}:
+    get:
+      tags: [Drones]
+      operationId: consulterDrone
+      summary: Consulter un de ses drones (UC-02)
+      description: |-
+        Sans IMSI ni ICCID. Le drone d'un autre client donne 404, comme un drone inexistant.
+
+        Codes d'erreur : 400 DRONE_ID_INVALIDE ; 404 DRONE_INTROUVABLE.
+      parameters:
+        - name: droneId
+          in: path
+          required: true
+          description: Identifiant du drone choisi par le client
+          schema: { type: string, pattern: "^[A-Za-z0-9-]{1,64}$" }
+          example: DRONE-600
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "200":
+          description: Le drone
+          content:
+            application/json:
+              schema:
+                $ref: "drone-service.yaml#/components/schemas/DroneResponse"
+        "400": { $ref: "drone-service.yaml#/components/responses/RequeteInvalide" }
+        "401": { $ref: "#/components/responses/RefusPasserelle" }
+        "404": { $ref: "drone-service.yaml#/components/responses/DroneIntrouvable" }
+        "500": { $ref: "drone-service.yaml#/components/responses/ErreurInterne" }
+
+  /api/commande-service/v1/commande:
+    post:
+      tags: [Commandes]
+      operationId: passerCommande
+      summary: Commander des services pour ses drones (UC-04)
+      description: |-
+        Chaque élément associe un drone du client à un service du catalogue (C2, IMAGERIE).
+        Les caractéristiques réseau sont copiées du catalogue, jamais fournies par le client.
+        L'activation de chaque élément (UC-06) est ensuite demandée ; son état se suit en consultant la commande.
+
+        Idempotence : renvoyer la même requête avec la même Idempotency-Key renvoie la commande existante (200),
+        sans doublon. La même clé avec un contenu différent est refusée (409).
+
+        Codes d'erreur : 400 REQUETE_INVALIDE, CLE_IDEMPOTENCE_INVALIDE, COMMANDE_VIDE, DRONE_ID_INVALIDE,
+        TYPE_SERVICE_INVALIDE ; 404 DRONE_INTROUVABLE ; 409 CLE_IDEMPOTENCE_REUTILISEE ;
+        422 DRONE_NON_ELIGIBLE, SERVICE_INCONNU, ELEMENT_EN_DOUBLE ; 503 DRONE_SERVICE_INDISPONIBLE.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Clé choisie par le client (UUID conseillé, 100 caractères max.)
+          schema: { type: string, maxLength: 100 }
+          example: 8b0e6c52-3f1a-4d9e-b7c4-2a5d9e1f0c63
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "commande-service.yaml#/components/schemas/PasserCommandeRequest"
+            example:
+              elements:
+                - { droneId: DRONE-600, typeService: C2 }
+                - { droneId: DRONE-600, typeService: IMAGERIE }
+      responses:
+        "201":
+          description: Commande créée ; activation demandée (EN_COURS) ou en attente (RECUE)
+          headers:
+            Location:
+              description: URL de la commande créée
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: "commande-service.yaml#/components/schemas/CommandeResponse"
+        "200":
+          description: "Rejeu : même clé et même contenu, la commande existante"
+          content:
+            application/json:
+              schema:
+                $ref: "commande-service.yaml#/components/schemas/CommandeResponse"
+        "400": { $ref: "commande-service.yaml#/components/responses/RequeteInvalide" }
+        "401": { $ref: "#/components/responses/RefusPasserelle" }
+        "404": { $ref: "commande-service.yaml#/components/responses/Introuvable" }
+        "409": { $ref: "commande-service.yaml#/components/responses/CleReutilisee" }
+        "422": { $ref: "commande-service.yaml#/components/responses/RegleMetier" }
+        "500": { $ref: "commande-service.yaml#/components/responses/ErreurInterne" }
+        "503": { $ref: "commande-service.yaml#/components/responses/DependanceIndisponible" }
+
+  /api/commande-service/v1/commande/{commandeId}:
+    get:
+      tags: [Commandes]
+      operationId: consulterCommande
+      summary: Consulter une de ses commandes (UC-04)
+      description: |-
+        L'état de chaque élément est actualisé depuis l'inventaire des services.
+        La commande d'un autre client donne 404.
+
+        Codes d'erreur : 400 COMMANDE_ID_INVALIDE ; 404 COMMANDE_INTROUVABLE.
+      parameters:
+        - name: commandeId
+          in: path
+          required: true
+          description: Identifiant de la commande (UUID)
+          schema: { type: string, format: uuid }
+          example: 6f1c2a9e-0b7d-4c3e-9a51-8d2e4f6b1a07
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "200":
+          description: La commande et l'état de ses éléments
+          content:
+            application/json:
+              schema:
+                $ref: "commande-service.yaml#/components/schemas/CommandeResponse"
+        "400": { $ref: "commande-service.yaml#/components/responses/RequeteInvalide" }
+        "401": { $ref: "#/components/responses/RefusPasserelle" }
+        "404": { $ref: "commande-service.yaml#/components/responses/Introuvable" }
+        "500": { $ref: "commande-service.yaml#/components/responses/ErreurInterne" }
+
+  /api/slice-service/v1/service/{serviceId}:
+    get:
+      tags: [Services]
+      operationId: consulterService
+      summary: Consulter l'état d'un de ses services (UC-06)
+      description: |-
+        Le service d'un autre client donne 404, comme un service inexistant. Jamais d'IMSI.
+
+        Codes d'erreur : 400 SERVICE_ID_INVALIDE ; 404 SERVICE_INTROUVABLE.
+      parameters:
+        - name: serviceId
+          in: path
+          required: true
+          description: Identifiant du service (UUID)
+          schema: { type: string, format: uuid }
+          example: 4d8e2b1f-7a3c-4e95-8b06-1c9f5a2d7e40
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "200":
+          description: Le service et son état
+          content:
+            application/json:
+              schema:
+                $ref: "slice-service.yaml#/components/schemas/ServiceResponse"
+        "400": { $ref: "slice-service.yaml#/components/responses/RequeteInvalide" }
+        "401": { $ref: "#/components/responses/RefusPasserelle" }
+        "404": { $ref: "slice-service.yaml#/components/responses/ServiceIntrouvable" }
+        "500": { $ref: "slice-service.yaml#/components/responses/ErreurInterne" }
+
+components:
+  securitySchemes:
+    keycloak:
+      type: oauth2
+      description: |-
+        Jeton d'accès émis par Keycloak (realm candronex) à un client B2B (ex. inspectra-demo, aerotech-demo),
+        avec l'audience candronex-api. Envoyé dans l'en-tête Authorization: Bearer <jeton>.
+      flows:
+        clientCredentials:
+          tokenUrl: http://localhost:8081/realms/candronex/protocol/openid-connect/token
+          scopes: {}
+
+  parameters:
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      description: |-
+        Identifiant de la requête, repris dans les journaux des 3 services et dans les erreurs (correlationId).
+        Généré par le service s'il est absent ; renvoyé dans la réponse.
+      schema: { type: string, pattern: "^[A-Za-z0-9-]{1,64}$" }
+      example: 3f2b8c1e-5d0a-4e7b-9c61-2a4f8e0d7b13
+
+  responses:
+    RefusPasserelle:
+      description: |-
+        Jeton absent, invalide, expiré, ou émis pour une autre audience : refusé par la passerelle,
+        sans atteindre les services. Si la passerelle laisse passer un jeton que le service refuse, le service
+        répond aussi 401, au format Problem Details (code NON_AUTHENTIFIE).

@@ -1,0 +1,338 @@
+openapi: 3.1.0
+info:
+  description: Contexte Activation et inventaire des services (UC-06). L'activation auprès du réseau 5G (simulé) se fait en arrière-plan. Les routes marquées « Interne » ne sont pas exposées par la passerelle.
+  title: slice-service
+  version: v1
+servers:
+- url: http://slice-service:8083
+  description: "Réseau Docker interne seulement : de l'extérieur, passer par la passerelle"
+security:
+- jetonBearer: []
+tags:
+- description: "UC-06 : état des services réseau activés pour le client authentifié"
+  name: Services
+paths:
+  /api/slice-service/v1/activation:
+    post:
+      description: |-
+        Appelée par commande-service après l'enregistrement d'une commande. Absente de la passerelle. Crée le service (EN_ATTENTE) puis l'active en arrière-plan : identité réseau demandée à drone-service, puis provisionnement auprès du réseau 5G. Idempotente : un seul service par (commandeId, elementId).
+
+        Codes d'erreur : 400 REQUETE_INVALIDE, DRONE_ID_INVALIDE, SST_INVALIDE, DNN_INVALIDE, FIVEQI_INVALIDE, ARP_INVALIDE, AMBR_INVALIDE.
+      operationId: demander
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DemandeActivationRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceResponse"
+          description: "Rejeu : le service existait déjà pour cet élément"
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceResponse"
+          description: Demande acceptée ; suivre l'état du service à l'URL Location
+          headers:
+            Location:
+              description: URL du service
+              style: simple
+        "400":
+          $ref: "#/components/responses/RequeteInvalide"
+        "401":
+          $ref: "#/components/responses/NonAuthentifie"
+        "500":
+          $ref: "#/components/responses/ErreurInterne"
+      summary: "Demander l'activation d'un élément de commande (interne, UC-06)"
+      tags:
+      - Services
+      - Interne
+  /api/slice-service/v1/service:
+    get:
+      description: |-
+        Appelée par commande-service pour actualiser l'état des éléments. Absente de la passerelle. Liste vide si la commande n'a aucun service, ou appartient à un autre client.
+
+        Codes d'erreur : 400 REQUETE_INVALIDE (commandeId absent ou qui n'est pas un UUID).
+      operationId: servicesDeLaCommande
+      parameters:
+      - description: Identifiant de la commande
+        example: 6f1c2a9e-0b7d-4c3e-9a51-8d2e4f6b1a07
+        in: query
+        name: commandeId
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceResponse"
+          description: Les services de la commande (éventuellement aucun)
+        "400":
+          $ref: "#/components/responses/RequeteInvalide"
+        "401":
+          $ref: "#/components/responses/NonAuthentifie"
+        "500":
+          $ref: "#/components/responses/ErreurInterne"
+      summary: "Services d'une commande (interne, UC-04)"
+      tags:
+      - Services
+      - Interne
+  /api/slice-service/v1/service/{serviceId}:
+    get:
+      description: |-
+        Le service d'un autre client donne 404, comme un service inexistant. Jamais d'IMSI.
+
+        Codes d'erreur : 400 SERVICE_ID_INVALIDE ; 404 SERVICE_INTROUVABLE.
+      operationId: consulter
+      parameters:
+      - description: Identifiant du service (UUID)
+        example: 4d8e2b1f-7a3c-4e95-8b06-1c9f5a2d7e40
+        in: path
+        name: serviceId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceResponse"
+          description: Le service et son état
+        "400":
+          $ref: "#/components/responses/RequeteInvalide"
+        "401":
+          $ref: "#/components/responses/NonAuthentifie"
+        "404":
+          $ref: "#/components/responses/ServiceIntrouvable"
+        "500":
+          $ref: "#/components/responses/ErreurInterne"
+      summary: Consulter l'état d'un service du client (UC-06)
+      tags:
+      - Services
+components:
+  responses:
+    ErreurInterne:
+      content:
+        application/problem+json:
+          example:
+            code: ERREUR_INTERNE
+            correlationId: 3f2b8c1e-5d0a-4e7b-9c61-2a4f8e0d7b13
+            detail: Erreur interne. Communiquez le correlationId au support.
+            status: 500
+            title: Internal Server Error
+            type: urn:candronex:erreur:ERREUR_INTERNE
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+      description: Erreur inattendue ; aucun détail technique n'est exposé
+    NonAuthentifie:
+      content:
+        application/problem+json:
+          example:
+            code: NON_AUTHENTIFIE
+            correlationId: 3f2b8c1e-5d0a-4e7b-9c61-2a4f8e0d7b13
+            detail: "Jeton Bearer absent, invalide ou expiré"
+            status: 401
+            title: Unauthorized
+            type: urn:candronex:erreur:NON_AUTHENTIFIE
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+      description: "Jeton Bearer absent, invalide ou expiré (en-tête WWW-Authenticate: Bearer)"
+    RequeteInvalide:
+      content:
+        application/problem+json:
+          example:
+            code: REQUETE_INVALIDE
+            correlationId: 3f2b8c1e-5d0a-4e7b-9c61-2a4f8e0d7b13
+            detail: "Requête mal formée, ou champ, paramètre ou en-tête obligatoire manquant ou invalide"
+            status: 400
+            title: Bad Request
+            type: urn:candronex:erreur:REQUETE_INVALIDE
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+      description: "Requête invalide : corps mal formé, champ ou en-tête obligatoire manquant, ou format refusé par le domaine"
+    ServiceIntrouvable:
+      content:
+        application/problem+json:
+          example:
+            code: SERVICE_INTROUVABLE
+            correlationId: 3f2b8c1e-5d0a-4e7b-9c61-2a4f8e0d7b13
+            detail: Service 4d8e2b1f-7a3c-4e95-8b06-1c9f5a2d7e40 introuvable
+            status: 404
+            title: Not Found
+            type: urn:candronex:erreur:SERVICE_INTROUVABLE
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+      description: "Service inexistant OU appartenant à un autre client (indiscernables). Code : SERVICE_INTROUVABLE"
+  schemas:
+    CaracteristiquesDemandees:
+      type: object
+      description: Caractéristiques copiées du catalogue par commande-service
+      properties:
+        ambrDescendant:
+          type: string
+          example: 20 Mbps
+          minLength: 1
+        ambrMontant:
+          type: string
+          example: 20 Mbps
+          minLength: 1
+        arp:
+          type: integer
+          format: int32
+          example: 2
+        dnn:
+          type: string
+          example: c2
+          minLength: 1
+        fiveQi:
+          type: integer
+          format: int32
+          example: 7
+        sd:
+          type: string
+          example: "000001"
+          minLength: 1
+        sst:
+          type: integer
+          format: int32
+          example: 2
+      required:
+      - ambrDescendant
+      - ambrMontant
+      - dnn
+      - sd
+    DemandeActivationRequest:
+      type: object
+      description: "Élément de commande à activer, avec ses caractéristiques figées"
+      properties:
+        acceptedAt:
+          type: string
+          format: date-time
+          description: Acceptation de la commande par commande-service
+          example: 2026-10-31T14:02:11.204Z
+        caracteristiques:
+          $ref: "#/components/schemas/CaracteristiquesDemandees"
+        commandeId:
+          type: string
+          format: uuid
+        droneId:
+          type: string
+          example: DRONE-600
+          minLength: 1
+        elementId:
+          type: string
+          format: uuid
+        typeService:
+          type: string
+          example: C2
+          minLength: 1
+      required:
+      - acceptedAt
+      - caracteristiques
+      - commandeId
+      - droneId
+      - elementId
+      - typeService
+    ProblemDetails:
+      type: object
+      description: "Format d'erreur uniforme des 3 services (RFC 9457, application/problem+json)"
+      properties:
+        code:
+          type: string
+          description: "Code stable, destiné aux programmes clients"
+          example: DRONE_INTROUVABLE
+        correlationId:
+          type: string
+          description: Identifiant de la requête dans les journaux (en-tête X-Correlation-Id)
+          example: 3f2b8c1e-5d0a-4e7b-9c61-2a4f8e0d7b13
+        detail:
+          type: string
+          description: Explication lisible par un humain
+          example: Drone DRONE-600 introuvable
+        instance:
+          type: string
+          format: uri
+          description: Chemin de la requête
+          example: /api/drone-service/v1/drone/DRONE-600
+        status:
+          type: integer
+          format: int32
+          description: Statut HTTP
+          example: 404
+        title:
+          type: string
+          description: Libellé du statut HTTP
+          example: Not Found
+        type:
+          type: string
+          format: uri
+          description: Identifiant du type d'erreur
+          example: urn:candronex:erreur:DRONE_INTROUVABLE
+      required:
+      - code
+      - status
+      - title
+      - type
+    ServiceResponse:
+      type: object
+      description: "Service réseau d'un drone, dans l'inventaire"
+      properties:
+        acceptedAt:
+          type: string
+          format: date-time
+          description: "Acceptation de la commande : début de la mesure du délai d'activation"
+          example: 2026-10-31T14:02:11.204Z
+        activatedAt:
+          type: string
+          format: date-time
+          description: Absent tant que le service n'est pas ACTIF
+          example: 2026-10-31T14:02:12.588Z
+        causeEchec:
+          type: string
+          description: Absent sauf en cas d'échec
+        commandeId:
+          type: string
+          example: 6f1c2a9e-0b7d-4c3e-9a51-8d2e4f6b1a07
+        droneId:
+          type: string
+          example: DRONE-600
+        elementId:
+          type: string
+          example: 0c9a7d3b-6e2f-4a81-b5d0-3f7e1c8a2b94
+        etat:
+          type: string
+          description: "ECHEC_INDETERMINE : délai dépassé, issue inconnue (vérifier avant toute reprise)"
+          enum:
+          - EN_ATTENTE
+          - EN_ACTIVATION
+          - ACTIF
+          - ECHEC
+          - ECHEC_INDETERMINE
+          example: ACTIF
+        serviceId:
+          type: string
+          example: 4d8e2b1f-7a3c-4e95-8b06-1c9f5a2d7e40
+        snssai:
+          type: string
+          description: Identifiant de la slice (sst-sd)
+          example: 2-000001
+        typeService:
+          type: string
+          example: C2
+  securitySchemes:
+    jetonBearer:
+      bearerFormat: JWT
+      description: "Jeton d'accès émis par Keycloak (realm candronex, audience candronex-api). Le client est identifié par la claim azp du jeton vérifié."
+      scheme: bearer
+      type: http
