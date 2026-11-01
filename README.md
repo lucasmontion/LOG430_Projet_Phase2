@@ -5,7 +5,7 @@ Les jetons sont émis par Keycloak (OAuth2 client credentials).
 
 | Conteneur | Rôle | Cas d'utilisation | Exposé sur l'hôte |
 |---|---|---|---|
-| `api-gateway` (KrakenD) | Point d'entrée unique, vérifie le jeton | — | `GATEWAY_PORT` (8080 par défaut) |
+| `api-gateway` (KrakenD) | Point d'entrée unique, vérifie le jeton | — | `GATEWAY_PORT` (8088 dans `.env.example`) |
 | `keycloak` | Émet les jetons (realm `candronex`) | — | 8081 |
 | `drone-service` + `drone-db` | Gestion des drones | UC-02 | non |
 | `commande-service` + `commande-db` | Catalogue et commandes | UC-04 | non |
@@ -54,7 +54,7 @@ par la passerelle. Les erreurs suivent le format Problem Details (RFC 9457).
 ## Scénario de démonstration
 
 ```bash
-GW=http://localhost:8080   # ou le port choisi dans GATEWAY_PORT
+GW=http://localhost:8088   # port choisi dans GATEWAY_PORT
 
 curl -i -X POST $GW/api/drone-service/v1/drone \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
