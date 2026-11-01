@@ -1,0 +1,368 @@
+{
+  "root_group": {
+    "groups": [
+      {
+        "path": "::setup",
+        "id": "5c0f8025f7e0b6654089e5b00e950f1a",
+        "groups": [],
+        "checks": [
+            {
+              "name": "drone 201",
+              "path": "::setup::drone 201",
+              "id": "e88f8ccba28b387ef9e231a801800c99",
+              "passes": 40,
+              "fails": 0
+            },
+            {
+              "passes": 20,
+              "fails": 0,
+              "name": "commande 201",
+              "path": "::setup::commande 201",
+              "id": "90f8895d3b88f8ef8b0eb4ef1e888075"
+            }
+          ],
+        "name": "setup"
+      }
+    ],
+    "checks": [
+      {
+        "path": "::drone 200",
+        "id": "b94ee3dd603d9afdf69a8c787fe655e9",
+        "passes": 48734,
+        "fails": 1,
+        "name": "drone 200"
+      },
+      {
+        "fails": 48139,
+        "name": "commande 201",
+        "path": "::commande 201",
+        "id": "2587d87282525fceaff8c8bd8de13b52",
+        "passes": 460
+      },
+      {
+        "name": "commande 200",
+        "path": "::commande 200",
+        "id": "e88462b9a5640c7af28d6d3e488b9334",
+        "passes": 754,
+        "fails": 47981
+      },
+      {
+        "name": "drone 201",
+        "path": "::drone 201",
+        "id": "e23e6eb1e171535af849686b92f3b504",
+        "passes": 15984,
+        "fails": 19
+      }
+    ],
+    "name": "",
+    "path": "",
+    "id": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "options": {
+    "noColor": true,
+    "summaryTrendStats": [
+      "avg",
+      "min",
+      "med",
+      "max",
+      "p(90)",
+      "p(95)"
+    ],
+    "summaryTimeUnit": ""
+  },
+  "state": {
+    "isStdOutTTY": false,
+    "isStdErrTTY": false,
+    "testRunDurationMs": 370000.512711
+  },
+  "metrics": {
+    "dropped_iterations": {
+      "values": {
+        "count": 35913,
+        "rate": 97.06202766278577
+      },
+      "thresholds": {
+        "count==0": {
+          "ok": false
+        }
+      },
+      "type": "counter",
+      "contains": "default"
+    },
+    "http_req_failed": {
+      "contains": "default",
+      "values": {
+        "passes": 96140,
+        "fails": 70494,
+        "rate": 0.5769530828042296
+      },
+      "thresholds": {
+        "rate<0.01": {
+          "ok": false
+        }
+      },
+      "type": "rate"
+    },
+    "http_req_connecting": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 0.17163016486431332,
+        "min": 0,
+        "med": 0,
+        "max": 205.997526,
+        "p(90)": 0,
+        "p(95)": 0
+      }
+    },
+    "checks": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 0.4070263735721511,
+        "passes": 65992,
+        "fails": 96140
+      }
+    },
+    "data_sent": {
+      "type": "counter",
+      "contains": "data",
+      "values": {
+        "count": 186341896,
+        "rate": 503626.04806860886
+      }
+    },
+    "http_req_waiting": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "min": 2.213405,
+        "med": 5001.840595,
+        "max": 5664.697548,
+        "p(90)": 5039.1459742,
+        "p(95)": 5059.2304721,
+        "avg": 2902.1436270176264
+      }
+    },
+    "http_req_receiving": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "max": 195.320162,
+        "p(90)": 0.34025070000000024,
+        "p(95)": 1.1088732500000034,
+        "avg": 0.36760037178487137,
+        "min": 0.009801,
+        "med": 0.0436055
+      }
+    },
+    "data_received": {
+      "type": "counter",
+      "contains": "data",
+      "values": {
+        "count": 53607328,
+        "rate": 144884.4695030777
+      }
+    },
+    "http_req_blocked": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(90)": 0.011001,
+        "p(95)": 0.12935225000000042,
+        "avg": 0.25490865256182355,
+        "min": 0,
+        "med": 0.006,
+        "max": 206.388128
+      }
+    },
+    "vus": {
+      "type": "gauge",
+      "contains": "default",
+      "values": {
+        "min": 0,
+        "max": 1653,
+        "value": 128
+      }
+    },
+    "vus_max": {
+      "contains": "default",
+      "values": {
+        "value": 3000,
+        "min": 600,
+        "max": 3000
+      },
+      "type": "gauge"
+    },
+    "http_reqs": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "count": 166634,
+        "rate": 450.36153809374446
+      }
+    },
+    "iteration_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 2987.013895711068,
+        "min": 2.498332,
+        "med": 5004.581626499999,
+        "max": 10122.766367,
+        "p(90)": 5047.064583400001,
+        "p(95)": 5073.5225617
+      }
+    },
+    "iterations": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "count": 162072,
+        "rate": 438.0318254493642
+      }
+    },
+    "http_req_duration{expected_response:true}": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 348.58632386363485,
+        "min": 2.279612,
+        "med": 108.03321700000001,
+        "max": 5107.999818,
+        "p(90)": 873.5588193000001,
+        "p(95)": 1858.8240392499997
+      }
+    },
+    "http_req_tls_handshaking": {
+      "contains": "time",
+      "values": {
+        "p(95)": 0,
+        "avg": 0,
+        "min": 0,
+        "med": 0,
+        "max": 0,
+        "p(90)": 0
+      },
+      "type": "trend"
+    },
+    "http_req_sending": {
+      "values": {
+        "avg": 0.35716763217590863,
+        "min": -2.823157,
+        "med": 0.023402,
+        "max": 207.275233,
+        "p(90)": 0.3340307,
+        "p(95)": 1.1254877000000028
+      },
+      "type": "trend",
+      "contains": "time"
+    },
+    "http_req_duration{scenario:palier}": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "max": 5479.841546,
+        "p(90)": 5039.8043893,
+        "p(95)": 5059.3546296,
+        "avg": 2893.6679768561003,
+        "min": 2.279612,
+        "med": 5002.5319745
+      },
+      "thresholds": {
+        "p(95)<5000": {
+          "ok": false
+        }
+      }
+    },
+    "http_req_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 2902.8683950215204,
+        "min": 2.279612,
+        "med": 5002.104554,
+        "max": 5664.758851,
+        "p(90)": 5040.0179034,
+        "p(95)": 5060.2567976
+      }
+    }
+  },
+  "setup_data": {
+    "pools": {
+      "aerotech-demo": {
+        "commandes": [
+          "f56489e4-6f47-4e52-a9bb-8d9a630a8de7",
+          "4ff9e730-86a1-487d-86d9-81c1691dba6f",
+          "820a85ff-8c8d-4adf-bd21-d0c1c26c0074",
+          "50aeffe7-7a4c-4148-b4ca-894bb3aa18b9",
+          "74a70ae9-9084-410c-87a1-f7f919172b4d",
+          "1973dcc8-505b-4d8c-94df-7ff6f001d5fe",
+          "3607344a-a9e1-4221-9b66-63af643c6750",
+          "fede8c4e-a37f-426e-97e3-3070acc5411e",
+          "1a020b43-213e-40e9-a494-b57ec2f8bf30",
+          "9351bd6f-1851-498b-8da3-58548b275283"
+        ],
+        "drones": [
+          "K6-7292-0-21",
+          "K6-7292-0-22",
+          "K6-7292-0-23",
+          "K6-7292-0-24",
+          "K6-7292-0-25",
+          "K6-7292-0-26",
+          "K6-7292-0-27",
+          "K6-7292-0-28",
+          "K6-7292-0-29",
+          "K6-7292-0-30",
+          "K6-7292-0-31",
+          "K6-7292-0-32",
+          "K6-7292-0-33",
+          "K6-7292-0-34",
+          "K6-7292-0-35",
+          "K6-7292-0-36",
+          "K6-7292-0-37",
+          "K6-7292-0-38",
+          "K6-7292-0-39",
+          "K6-7292-0-40"
+        ]
+      },
+      "inspectra-demo": {
+        "commandes": [
+          "18abb1af-6687-4cdf-904c-e60371be2650",
+          "69bff04c-fb73-44ce-9335-1d5d47421d1c",
+          "d038ba7f-6555-4324-8a61-21b87bee0190",
+          "70cc749a-7551-4294-a651-db33214d76f1",
+          "ba6d15ad-0da9-4e65-a668-7103dfcbfdb8",
+          "f9f7df47-f531-4442-b2d1-d02b3235dbf5",
+          "6b263b65-647a-465c-aba2-645732ed0c92",
+          "f51721cd-0e5f-4bfe-8577-bfdc24192d0d",
+          "e5db87ca-10fb-4c6b-9e81-64b30b757c7b",
+          "9dd01553-9df4-400e-a1c9-7532f74f7187"
+        ],
+        "drones": [
+          "K6-7292-0-1",
+          "K6-7292-0-2",
+          "K6-7292-0-3",
+          "K6-7292-0-4",
+          "K6-7292-0-5",
+          "K6-7292-0-6",
+          "K6-7292-0-7",
+          "K6-7292-0-8",
+          "K6-7292-0-9",
+          "K6-7292-0-10",
+          "K6-7292-0-11",
+          "K6-7292-0-12",
+          "K6-7292-0-13",
+          "K6-7292-0-14",
+          "K6-7292-0-15",
+          "K6-7292-0-16",
+          "K6-7292-0-17",
+          "K6-7292-0-18",
+          "K6-7292-0-19",
+          "K6-7292-0-20"
+        ]
+      }
+    },
+    "run": "7292"
+  }
+}

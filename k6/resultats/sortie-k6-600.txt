@@ -1,0 +1,34 @@
+time="2026-11-01T07:14:57Z" level=info msg="run 7292 : filtrer la base avec drone_id LIKE 'K6-7292-%'" source=console
+     ✗ drone 200
+      ↳  99% — ✓ 48734 / ✗ 1
+     ✗ commande 201
+      ↳  0% — ✓ 460 / ✗ 48139
+     ✗ commande 200
+      ↳  1% — ✓ 754 / ✗ 47981
+     ✗ drone 201
+      ↳  99% — ✓ 15984 / ✗ 19
+
+     █ setup
+
+       ✓ drone 201
+       ✓ commande 201
+
+     checks.........................: 40.70% ✓ 65992      ✗ 96140 
+     data_received..................: 54 MB  145 kB/s
+     data_sent......................: 186 MB 504 kB/s
+   ✗ dropped_iterations.............: 35913  97.062028/s
+     http_req_blocked...............: avg=254.9µs  min=0s         med=6µs      max=206.38ms p(90)=11µs     p(95)=129.35µs
+     http_req_connecting............: avg=171.63µs min=0s         med=0s       max=205.99ms p(90)=0s       p(95)=0s      
+     http_req_duration..............: avg=2.9s     min=2.27ms     med=5s       max=5.66s    p(90)=5.04s    p(95)=5.06s   
+       { expected_response:true }...: avg=348.58ms min=2.27ms     med=108.03ms max=5.1s     p(90)=873.55ms p(95)=1.85s   
+     ✗ { scenario:palier }..........: avg=2.89s    min=2.27ms     med=5s       max=5.47s    p(90)=5.03s    p(95)=5.05s   
+   ✗ http_req_failed................: 57.69% ✓ 96140      ✗ 70494 
+     http_req_receiving.............: avg=367.6µs  min=9.8µs      med=43.6µs   max=195.32ms p(90)=340.25µs p(95)=1.1ms   
+     http_req_sending...............: avg=357.16µs min=-2823157ns med=23.4µs   max=207.27ms p(90)=334.03µs p(95)=1.12ms  
+     http_req_tls_handshaking.......: avg=0s       min=0s         med=0s       max=0s       p(90)=0s       p(95)=0s      
+     http_req_waiting...............: avg=2.9s     min=2.21ms     med=5s       max=5.66s    p(90)=5.03s    p(95)=5.05s   
+     http_reqs......................: 166634 450.361538/s
+     iteration_duration.............: avg=2.98s    min=2.49ms     med=5s       max=10.12s   p(90)=5.04s    p(95)=5.07s   
+     iterations.....................: 162072 438.031825/s
+     vus............................: 128    min=0        max=1653
+     vus_max........................: 3000   min=600      max=3000time="2026-11-01T07:21:02Z" level=error msg="thresholds on metrics 'dropped_iterations, http_req_duration{scenario:palier}, http_req_failed' have been crossed"

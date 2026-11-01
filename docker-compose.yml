@@ -1,5 +1,6 @@
 services:
   keycloak:
+    networks: [public]
     image: quay.io/keycloak/keycloak:26.0
     command: start-dev --import-realm --http-port=8080
     environment:
@@ -23,6 +24,7 @@ services:
       retries: 20
 
   api-gateway:
+    networks: [public]
     image: devopsfaith/krakend:2.7.2
     volumes:
       - ./krakend/krakend.json:/etc/krakend/krakend.json:ro
@@ -48,6 +50,7 @@ services:
       - "8090:8080"
 
   drone-db:
+    networks: [donnees-drone]
     image: postgres:16
     environment:
       POSTGRES_DB: drone
@@ -62,6 +65,7 @@ services:
       retries: 10
 
   drone-service:
+    networks: [public, donnees-drone]
     build:
       context: .                          # racine : le Dockerfile a besoin du POM parent
       dockerfile: drone-service/Dockerfile
@@ -74,6 +78,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: drone
 
   commande-db:
+    networks: [donnees-commande]
     image: postgres:16
     environment:
       POSTGRES_DB: commande
@@ -89,6 +94,7 @@ services:
 
 
   commande-service:
+    networks: [public, donnees-commande]
     build:
       context: .                          # racine : le Dockerfile a besoin du POM parent
       dockerfile: commande-service/Dockerfile
@@ -103,6 +109,7 @@ services:
       SLICE_SERVICE_URL: http://slice-service:8083   # dépendance REST vers slice-service (UC-06)
 
   slice-db:
+    networks: [donnees-slice]
     image: postgres:16
     environment:
       POSTGRES_DB: slice
@@ -117,6 +124,7 @@ services:
       retries: 10
 
   slice-service:
+    networks: [public, donnees-slice]
     build:
       context: .                          # racine : le Dockerfile a besoin du POM parent
       dockerfile: slice-service/Dockerfile
@@ -133,6 +141,18 @@ services:
       MOCK_LATENCE_MAX_MS: ${MOCK_LATENCE_MAX_MS:-1500}
       MOCK_TAUX_ECHEC: ${MOCK_TAUX_ECHEC:-0.0}
       MOCK_DELAI_ATTENTE_MS: ${MOCK_DELAI_ATTENTE_MS:-5000}
+
+# Segmentation : seuls la passerelle (et Keycloak, pour obtenir un jeton) sont publiés sur l'hôte.
+# public : passerelle, Keycloak et les 3 services (appels entre services, vérification des jetons).
+# donnees-* : un réseau privé par service et sa base ; aucun autre conteneur ne peut joindre cette base.
+networks:
+  public:
+  donnees-drone:
+    internal: true
+  donnees-commande:
+    internal: true
+  donnees-slice:
+    internal: true
 
 volumes:
   donnees-drone:
